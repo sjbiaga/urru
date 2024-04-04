@@ -1,0 +1,12 @@
+.projectile
+*~
+*.db
+.metals
+.bloop
+.bsp
+target/
+*.iml
+.idea/
+metals.sbt
+project/project/project
+.vscode
