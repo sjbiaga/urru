@@ -235,15 +235,21 @@ object Term:
                     then
                       ( if keyStroke.getKeyType eq KeyType.Escape
                         then
-                          IO { game.dropOut() } >> render(clues, justR, linesR)
+                          IO { game.dropOut } >> render(clues, justR, linesR)
 
                         else if keyStroke.getKeyType eq KeyType.Backspace
                         then
-                          IO { game.dragOn() } >> render(clues, justR, linesR)
+                          IO { game.dragOn } >> render(clues, justR, linesR)
 
                         else if keyStroke.getKeyType eq KeyType.Enter
                         then
-                          IO { game.dragOff(elapsed) } >> render(clues, justR, linesR)
+                          IO { game.dragOff(elapsed) }.flatMap {
+                            if _
+                            then
+                              render(clues, justR, linesR)
+                            else
+                              IO.unit
+                          }
 
                         else if keyStroke.getKeyType eq KeyType.Character
                         then
@@ -323,11 +329,11 @@ object Term:
 
                             else if chr == '-'
                             then
-                              IO { game.dragOut() } >> render(clues, justR, linesR)
+                              IO { game.dragOut } >> render(clues, justR, linesR)
 
                             else if chr == '+' || chr == '='
                             then
-                              IO { game.dropIn() } >> render(clues, justR, linesR)
+                              IO { game.dropIn(1) } >> render(clues, justR, linesR)
 
                             else if chr == '#' || chr == '3'
                             then

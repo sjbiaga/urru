@@ -43,7 +43,7 @@ abstract trait Game[T,
   def apply(move: M, mutable: Boolean = true): Option[Map[Int, Int]]
 
   def apply(it: M, pre: Option[Map[Int, Int]]): Boolean =
-    pre.map { m =>
+    pre.exists { m =>
       val i = pending(0)._1
       pending.remove(0)
 
@@ -65,7 +65,7 @@ abstract trait Game[T,
       batch ::= false
 
       true
-    }.getOrElse(false)
+    }
 
   def move(dir: (Int, Int))(elapsed: Long): Boolean
   def undo()(elapsed: Long): Boolean

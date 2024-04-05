@@ -364,7 +364,7 @@ object App:
                           then
                             if move
                             then
-                              game(-i-1).dragOut()
+                              game(-i-1).dragOut
                             else
                               game(-i-1)
                             game.dropIn(-1)
@@ -387,15 +387,19 @@ object App:
                               && game.dropOn(ps*)
                               then
                                 game.nowPlay = game.nowPlay.copy(block = block(to - (1, 1)))
-                                game.dragOff(elapsed)
-                                game.pads(app, game.pending.isEmpty)
+                                if game.dragOff(elapsed)
+                                then
+                                  game.pads(app, game.pending.isEmpty)
+                                else
+                                  game.dropOut
+                                  game.pads(app, true)
                               else
-                                game.dropOut()
+                                game.dropOut
                                 game.pads(app, true)
                               board.redraw(game)()
                         else // double click
                           assert(move)
-                          game(-i-1).dragOut()
+                          game(-i-1).dragOut
                           game(app)
                           game.pads(app, true)
                       }
@@ -409,7 +413,7 @@ object App:
                       ( if key.get.getCode() eq KeyCode.ESCAPE
                         then
                           IO {
-                            game.dropOut()
+                            game.dropOut
                             board.redraw(game)()
                             game.pads(app, true)
                           }
@@ -417,7 +421,7 @@ object App:
                         else if key.get.getCode() eq KeyCode.BACK_SPACE
                         then
                           IO {
-                            game.dragOn()
+                            game.dragOn
                             board.redraw(game)()
                             if game.selectionMode == 0
                             then
@@ -427,7 +431,10 @@ object App:
                         else if key.get.getCode() eq KeyCode.ENTER
                         then
                           IO {
-                            game.dragOff(elapsed)
+                            if !game.dragOff(elapsed)
+                            then
+                              game.dropOut
+                              game.pads(app, true)
                             board.redraw(game)()
                           }
 
@@ -525,7 +532,7 @@ object App:
                     else if key.get.getCode() eq KeyCode.MINUS
                     then
                       IO {
-                        game.dragOut()
+                        game.dragOut
                         game(app)
                         game.pads(app, true)
                       }
@@ -533,7 +540,7 @@ object App:
                     else if key.get.getCode() eq KeyCode.EQUALS
                     then
                       IO {
-                        game.dropIn()
+                        game.dropIn(1)
                         if game.selectionMode != 0
                         then
                           board.redraw(game)()

@@ -77,3 +77,12 @@ package tense:
       case class Backlash(override val move: Move,
                           override val pair: Map[Int, Seq[Point]])
           extends Data[Mp]
+
+////////////////////////////////////////////////////////////////////////////////
+
+      /**
+        * The move placed the block in the pad: you doubt that this move
+        * should occur.
+        */
+      class DragAndDrop(move: Move)
+          extends Backtrack(move)

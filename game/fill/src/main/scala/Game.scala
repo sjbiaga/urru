@@ -2,7 +2,7 @@ package urru
 package game
 package fill
 
-import scala.collection.mutable.{ HashMap, HashSet, Queue }
+import scala.collection.mutable.{ HashMap, HashSet, LinkedHashMap, Queue }
 import scala.collection.mutable.{ ListBuffer => MutableList }
 
 import cats.effect.IO
@@ -77,62 +77,69 @@ case class Game(
   override def apply(it: Move, mutable: Boolean): Option[Map[Int, Int]] =
     val i = -it.color-1
 
-    val pre = HashMap[Int, Int]()
+    val pre = LinkedHashMap[Int, Int]()
 
-    pre(i) = -1
+    val play = state
+      .map(_.play)
+      .zipWithIndex
+      .filterNot(_._1.head.pad)
 
-    val q = Queue[(Int, Set[Point])]()
-
-    q.enqueue(i -> it.block.block.toSet)
-
-    while q.nonEmpty
-    do
-      val (i, block) = q.dequeue()
-
-      if {
-        state
-          .map(_.play)
-          .zipWithIndex
-          .filterNot(_._1.head.pad)
-          .foldLeft(false) {
-            case (true, _) => true
-            case (_, (_, `i`)) => false
-            case (_, (ls, j)) =>
-              var n = -1
-              ls
-                .map(_.block)
-                .foldLeft(false) {
-                  case (true, _) => true
-                  case (_, Block(_, _, _, _, _, _, _, _, ps*)) =>
-                    n += 1
-                    (block & ps.toSet).forall { pt =>
-                      wildcards.exists {
-                        case Multi(`pt`) => true
-                        case _ => false
-                      }
-                    }
-                }
-              if n > 0
-              then
+    def shift(x: Int, is: Set[Int], i: Int, block: Set[Point]): Boolean =
+      play
+        .foldLeft(true) {
+          case (false, _) => false
+          case (_, (_, `i`)) | (_, (_, `x`)) => true
+          case (_, (ls, j)) =>
+            var n = -1
+            ls
+              .drop {
                 if pre.contains(j)
                 then
-                  true
+                  pre(j)
                 else
-                  pre(j) = n
-                  n = 0
-                  while n < pre(j)
-                  do
-                    n += 1
-                    q.enqueue(j -> state(j).play.drop(n).head.block.block.toSet)
-                  false
-              else
+                  0
+              }
+              .map(_.block)
+              .foldLeft(false) {
+                case (true, _) => true
+                case (_, Block(_, _, _, _, _, _, _, _, ps*)) =>
+                  n += 1
+                  (block & ps.toSet).forall { pt =>
+                    wildcards.exists {
+                      case Multi(`pt`) => true
+                      case _ => false
+                    }
+                  }
+              }
+            if n > 0
+            then
+              if is.contains(j) // circular
+              then
                 false
-          }
-      }
-      then
-        return None
+              else
+                if !pre.contains(j)
+                then
+                  pre(j) = 0
+                while n > 0
+                do
+                  n -= 1
+                  pre(j) += 1
+                  val ps = state(j).play.drop(pre(j)).head.block.block.toSet
+                  if !shift(i, is + i, j, ps)
+                  then
+                    n = -1
+                n == 0
+            else
+              true
+        }
 
-    pre.remove(i)
+    pre += i -> -1
+
+    if !shift(-1, Set(i), i, it.block.block.toSet)
+    then
+      return None
+
+    pre -= i
 
     if mutable
     then
@@ -154,7 +161,7 @@ case class Game(
   import tense.intensional.Data
   import Data._
 
-  private def apply(): Move => Doubt = {
+  private[fill] def apply(): Move => Doubt = {
     case _ if !features(Feature.Just) =>
       Doubt(Set.empty)
 
@@ -205,7 +212,7 @@ case class Game(
     if this(it, this(it))
     then
       if {
-        item.path(0).redo.map { r =>
+        item.path(0).redo.exists { r =>
           if r.move == it
           && r.undo.intensity == in
           then
@@ -214,7 +221,7 @@ case class Game(
             true
           else
             false
-        }.getOrElse(false)
+        }
       }
       then
         redo(i)
@@ -237,10 +244,9 @@ case class Game(
     then
       nowPlay.block(size, dir).flatMap {
         case block if nowPlay.block(size, dir, clues) =>
-          if item.path(0).undo.map(_.move.dir == -dir).getOrElse(false)
+          if item.path(0).undo.exists(_.move.dir == -dir)
           then
-            undo()(elapsed)
-            Some(None)
+            undo()(elapsed) :- None
 
           else
             val it = Move(dir, block, block.color, elapsed)
@@ -250,14 +256,13 @@ case class Game(
         case _ =>
           None
 
-      }.map {
+      }.exists {
         case Some((it, in)) =>
           this(it, in)(elapsed)
 
         case _ =>
-          true
-
-      }.getOrElse(false)
+          false
+      }
 
     else
       false
@@ -369,12 +374,10 @@ case class Game(
     val i = -nowPlay.color-1
     val item = state(i)
 
-    item.path(0).redo.map { it =>
+    item.path(0).redo.exists { it =>
       val Move(dir, _, _, _) = it.move
 
-      if (if !dir then dir == (0, 0)
-                    || nowPlay(item.play.last.block.block*)(size, dir, clues, grid)
-                  else nowPlay.block(size, dir, clues, grid))
+      if !dir || nowPlay.block(size, dir, clues, grid)
       then
 
         if it.undo.intensity == this()(it.move)
@@ -395,7 +398,7 @@ case class Game(
       else
         false
 
-    }.getOrElse(false)
+    }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -415,7 +418,7 @@ case class Game(
       item = state(i)
       grid ++= item.play.head(grid, wildcards) // trick
       nowPlay = item.play.head
-      Game.this.dragOut()
+      this.dragOut
 
     check
 
@@ -450,19 +453,19 @@ object Game:
     // moveable w/o grid
     def apply(size: Point, dir: (Int, Int), clues: Set[Clue]): Boolean =
       val i = -self.color-1
-      self(size)(dir).map {
+      self(size)(dir).exists {
         _.forall { pt =>
           !clues.exists {
             case Empty(`pt`) => true
             case _ => false
           }
         }
-      }.getOrElse(false)
+      }
 
     // moveable w/ grid
     def apply(size: Point, dir: (Int, Int), clues: Set[Clue], grid: AnyMap[Point, Cell]): Boolean =
       val i = -self.color-1
-      self(size)(dir).map { ps =>
+      self(size)(dir).exists { ps =>
         ps.forall { pt =>
           !clues.exists {
             case Empty(`pt`) => true
@@ -475,7 +478,7 @@ object Game:
             case _ => false
           }
         }
-      }.getOrElse(false)
+      }
 
     // draggable
     def apply(size: Point, clues: Set[Clue]): Boolean =

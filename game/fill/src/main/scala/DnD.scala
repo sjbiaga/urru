@@ -10,7 +10,7 @@ import Clue._
 
 import tense.intensional.Data.Doubt
 
-import tense.intensional.Data.Backtrack
+import tense.intensional.Data.DragAndDrop
 
 import urru.grid.Game.Feature
 
@@ -21,7 +21,7 @@ object DnD:
 
   extension (self: Game)
 
-    def dragOut(): self.type =
+    def dragOut: self.type =
       if !self.nowPlay.pad
       then
         val i = -self.nowPlay.color-1
@@ -32,7 +32,7 @@ object DnD:
         then
           self.move(it)(Doubt(Set.empty))
         else
-          self.move(it)(Doubt(Set(Backtrack(it))))
+          self.move(it)(Doubt(Set(DragAndDrop(it))))
 
         if self.pending.exists { (j, m) => j == i || m.contains(i) }
         then
@@ -43,29 +43,28 @@ object DnD:
       else
         self
 
-    def dragOff(elapsed: Long): self.type =
+    def dragOff(elapsed: Long): Boolean =
       val it = self.nowPlay
       val i = -it.color-1
-      val in =
-        if !self.features(Feature.Just)
-        then
-          Doubt(Set.empty)
-        else
-          Doubt(Set(Backtrack(it)))
+      val in = self()(it)
 
-      self.selectionMode = 0
+      if self(it, in)(elapsed)
+      then
+        self(-i-1)
 
-      self(it, in)(elapsed)
+        self.selectionMode = 0
 
-      self(-i-1)
+        true
+      else
+        false
 
-    def dragOn(): self.type = dragOn(true, false)
+    def dragOn: self.type = dragOn(true, false)
 
     @tailrec
     private def dragOn(continue: Boolean, matching: Boolean): self.type =
       if self.nowPlay.block.max.row > self.size.row
       then
-        return dropOut()
+        return dropOut
 
       else if !continue
       then
@@ -125,14 +124,14 @@ object DnD:
 
           dragOn(false, matching)
 
-    def dropOut(): self.type =
+    def dropOut: self.type =
       val i = -self.nowPlay.color-1
 
       self.selectionMode = 0
 
       self(-i-1)
 
-    def dropIn(mode: Int = 1): self.type =
+    def dropIn(mode: Int): self.type =
       if self.nowPlay.pad
       then
         self.selectionMode = mode

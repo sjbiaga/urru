@@ -268,10 +268,10 @@ case class Game(
           Some(it -> in)
         case _ =>
           None
-      }.map {
+      }.exists {
         case (it, in) if this(it, this(it)) =>
           if {
-            state(2*i+odd).path(0).redo.map { r =>
+            state(2*i+odd).path(0).redo.exists { r =>
               if r.move == it
               && r.undo.intensity == in
               then
@@ -280,7 +280,7 @@ case class Game(
                 true
               else
                 false
-            }.getOrElse(false)
+            }
           }
           then
             redo(2*i+odd)
@@ -289,7 +289,7 @@ case class Game(
           true
         case _ =>
           false
-      }.getOrElse(false)
+      }
     else
       false
 
@@ -337,7 +337,7 @@ case class Game(
     val (odd, start) = nowStart
     val i = -start.color-1
 
-    state(2*i+odd).path(0).undo.map { it =>
+    state(2*i+odd).path(0).undo.exists { it =>
       undo(2*i+odd)
 
       batch ::= pending.nonEmpty && pending(0)._1 == 2*i+odd
@@ -365,7 +365,7 @@ case class Game(
 
       true
 
-    }.getOrElse(false)
+    }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -394,7 +394,7 @@ case class Game(
     val (odd, start) = nowStart
     val i = -start.color-1
 
-    state(2*i+odd).path(0).redo.map { it =>
+    state(2*i+odd).path(0).redo.exists { it =>
       if it.undo.intensity == this()(it.move)
       && this(it.move, this(it.move))
       then
@@ -408,7 +408,7 @@ case class Game(
       else
         false
 
-    }.getOrElse(false)
+    }
 
 ////////////////////////////////////////////////////////////////////////////////
 

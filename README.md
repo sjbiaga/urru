@@ -1,4 +1,4 @@
-Undo-Redo-Undo-Redo
+Undo-Redo-Redo-Undo
 ===================
 
 A `Game` is composed of colored "*items*" that correspond to:
@@ -53,7 +53,7 @@ so, "`redo`ne").
             _
 
 
-An "`undo`" has a `move` field thats holds the corresponding move, i.e., that
+An "`undo`" has a `move` field that holds the corresponding move, i.e., that
 can be "undone". This field is preserved even in a "`redo`", because the latter
 holds the "`undo`" in its `undo` field, and so the move - via `undo.move`. For
 `game-fill`, a move in the opposite direction as the previous, it is intercepted
@@ -200,18 +200,24 @@ This is when "repeal" occurs: TODO.
 Pending Batch(es)
 -----------------
 
-Without exception of some game, a move may require `undo`'s on other items, until
-the move is possible. For the `game-flow`, a move is always possible, i.e.,
-other line(s) "snap" until reducing to at most the pair of clue points (of course,
-a move _into_ any of the pair of clue points is impossible); however, when the
-two halfs of the same color would (snap and) join at ninety degrees upon a bridge
-clue, this move is prohibited: not that it couldn't make a pending, but otherwise
-there might be two pendings (one "collinear", one "not collinear"), whereas at most
-one pending is assumed. For the `game-fold`, a move may not be possible, because
-a block can at most fold to its initial shape, that cannot be eliminated. Since
-for `game-fill`, a block can be taken out from the grid onto the pad, also a move
-is always possible (of course, not taking into account when a block _cannot_ be
-"moved" or dropped from the pad onto the grid).
+With the contingent exception of `game-fill`, a move may require `undo`'s on
+other items, until the move is possible.
+
+For the `game-flow`, a move is always possible, i.e. other line(s) "snap" until
+reducing to at most the pair of clue points (of course, a move _into_ any of the
+pair of clue points is impossible); however, when the two halves of the same color
+would (snap and) join at ninety degrees upon a bridge clue, this move is
+prohibited: not that it couldn't make a pending, but otherwise there might be two
+pendings (one "collinear", one "not collinear"), whereas at most one pending is
+assumed.
+For the `game-fold`, a move may not be possible, because a block can at most fold
+to its initial shape, that cannot be eliminated.
+
+For the `game-fill`, although `drag` (move into the pad) and `drop` (move out of
+the pad) are also accounted for in the `undo`/`redo` lists, a cascade of `undo`s of
+other blocks leading to a cascade of `undo`s of yet other moves, may become circular
+before the blocks can be "dragged" out from the grid onto the pad, so a move
+is *not* always possible.
 
 For the cases when `undo`s must precede a possible move in order to make it occur,
 it is resorted to the very methods of `undo` (and `redo`), only which do not
@@ -267,6 +273,3 @@ is no longer any intensity.
 
 Whenever there is a move by the player, this move piles up on every `Board`
 in the `have` mutable list. Nothing extensional corresponds to `undo`/`redo`.
-
-Clues
------

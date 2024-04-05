@@ -184,10 +184,10 @@ case class Game(
           Some(it -> in)
         case _ =>
           None
-      }.map {
+      }.exists {
         case (it, in) if this(it, this(it)) =>
           if {
-            item.path(0).redo.map { r =>
+            item.path(0).redo.exists { r =>
               if r.move == it
               && r.undo.intensity == in
               then
@@ -196,7 +196,7 @@ case class Game(
                 true
               else
                 false
-            }.getOrElse(false)
+            }
           }
           then
             redo(i)
@@ -206,7 +206,7 @@ case class Game(
           true
         case _ =>
           false
-      }.getOrElse(false)
+      }
     else
       false
 
@@ -249,7 +249,7 @@ case class Game(
   override def undo()(elapsed: Long): Boolean =
     val i = -nowColor-1
 
-    state(i).path(0).undo.map { it =>
+    state(i).path(0).undo.exists { it =>
       undo(i)
 
       batch ::= pending.nonEmpty && pending(0)._1 == i
@@ -279,7 +279,7 @@ case class Game(
 
       true
 
-    }.getOrElse(false)
+    }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -301,7 +301,7 @@ case class Game(
   override def redo()(elapsed: Long): Boolean =
     val i = -nowColor-1
 
-    state(i).path(0).redo.map { it =>
+    state(i).path(0).redo.exists { it =>
       minusTime -= it.move.elapsed
       minusTime += it.undo.elapsed + elapsed
 
@@ -316,7 +316,7 @@ case class Game(
       else
         false
 
-    }.getOrElse(false)
+    }
 
 ////////////////////////////////////////////////////////////////////////////////
 
