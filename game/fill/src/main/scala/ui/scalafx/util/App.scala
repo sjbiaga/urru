@@ -474,6 +474,8 @@ object App:
                     then
                       IO {
                         val dir = arrows(key.get.getCode())
+                        val i = -game.nowPlay.color-1
+                        val m = game.state(i).play.size
 
                         if game.move(dir)(elapsed)
                         then
@@ -482,7 +484,12 @@ object App:
                             board.redraw(game)()
                             game.pads(app)
                           else
-                            game(app)
+                            val n = game.state(i).play.size
+                            if n < m
+                            then
+                              board.redraw(game)()
+                            else
+                              game(app)
                       }
 
                     else if key.get.getCode() eq KeyCode.DIGIT3
