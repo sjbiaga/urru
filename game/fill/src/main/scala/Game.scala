@@ -261,7 +261,7 @@ case class Game(
           this(it, in)(elapsed)
 
         case _ =>
-          false
+          true
       }
 
     else
