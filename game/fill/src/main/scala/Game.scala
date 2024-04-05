@@ -84,7 +84,8 @@ case class Game(
       .zipWithIndex
       .filterNot(_._1.head.pad)
 
-    def shift(x: Int, is: Set[Int], i: Int, block: Set[Point]): Boolean =
+    def shift(x: Int, is: HashSet[Int], i: Int, block: Set[Point]): Boolean =
+      is += i
       play
         .foldLeft(true) {
           case (false, _) => false
@@ -125,7 +126,7 @@ case class Game(
                   n -= 1
                   pre(j) += 1
                   val ps = state(j).play.drop(pre(j)).head.block.block.toSet
-                  if !shift(i, is + i, j, ps)
+                  if !shift(i, is, j, ps)
                   then
                     n = -1
                 n == 0
@@ -135,7 +136,7 @@ case class Game(
 
     pre += i -> -1
 
-    if !shift(-1, Set(i), i, it.block.block.toSet)
+    if !shift(-1, HashSet(), i, it.block.block.toSet)
     then
       return None
 
