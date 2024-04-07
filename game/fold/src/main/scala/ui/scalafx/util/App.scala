@@ -252,7 +252,7 @@ object App:
                     then
                       exitR.set(true) >> IO {
                         println("Use TAB to switch colors.")
-                        println("Use arrows <-, ->, ^, v to (un)fold left, right, up, down.")
+                        println("Use arrows ←, →, ↑, ↓ to (un)fold left, right, up, down.")
                         println("Use # to toggle grid, @ to restart game, | to pause.")
                         println("Use keys BACKSPACE and ENTER to undo or redo.")
                       }

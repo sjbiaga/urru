@@ -72,7 +72,7 @@ object Read:
 
           case "BLOCK"
               if ps.nonEmpty
-              && ps.forall { (row, col) => row <= 4 && col <= 4 } =>
+              && ps.forall { (row, col) => row <= 6 && col <= 6 } =>
 
             require(ps.forall(valid(_)))
 

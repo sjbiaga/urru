@@ -270,7 +270,7 @@ object App:
                     then
                       exitR.set(true) >> IO {
                         println("Use letters A-N to select a color, and TAB to toggle the pair.")
-                        println("Use arrows <-, ->, ^, v to draw left, right, up, down.")
+                        println("Use arrows ←, →, ↑, ↓ to move left, right, up, down.")
                         println("Use # to toggle axes, @ to restart game, | to pause.")
                         println("Use keys BACKSPACE and ENTER to undo or redo.")
                       }

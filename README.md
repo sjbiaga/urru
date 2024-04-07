@@ -212,7 +212,6 @@ pendings (one "collinear", one "not collinear"), whereas at most one pending is
 assumed.
 For the `game-fold`, a move may not be possible, because a block can at most fold
 to its initial shape, that cannot be eliminated.
-
 For the `game-fill`, although `drag` (move into the pad) and `drop` (move out of
 the pad) are also accounted for in the `undo`/`redo` lists, a cascade of `undo`s of
 other blocks leading to a cascade of `undo`s of yet other moves, may become circular

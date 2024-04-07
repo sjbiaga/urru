@@ -4,10 +4,14 @@ libraryDependencies ++= Seq(
   "co.fs2" %% "fs2-io" % "3.10.2",
 
   "com.googlecode.lanterna" % "lanterna" % "3.1.2",
-  "org.scalafx" %% "scalafx" % "21.0.0-R32",
+  "org.scalafx" %% "scalafx" % "22.0.0-R33",
 
   "org.scalatest" %% "scalatest" % "3.2.18" % Test
 )
+
+// Compile / mainClass := Some("urru.game.flow.ui.scalafx.Main") // run / fork := false
+Compile / mainClass := Some("urru.game.flow.ui.lanterna.Main")
+Compile / run / fork := true
 
 //https://stackoverflow.com/questions/25144484/sbt-assembly-deduplication-found-error
 assembly / assemblyMergeStrategy := {

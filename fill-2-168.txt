@@ -1,13 +1,1 @@
-# Normal, 2-168
-
-BOARD 5 5
-
-BLOCK 1 2 2 2 3 1 3 2
-BLOCK 1 2 2 1 2 2 2 3
-BLOCK 1 1 1 2 2 1
-BLOCK 1 2 2 1 2 2 2 3 3 3
-BLOCK 1 1 1 2 1 3 1 4 2 3
-
-EMPTY 2 1 4 1 5 5
-
-EMPTY 2 4
+game/fill/fill-2-168.txt

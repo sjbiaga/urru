@@ -48,7 +48,7 @@ object Main extends IOApp:
           _ <- id.update(_ + 1)
           _ <- if l.tail.isEmpty then mp.update(_.tail) else ls.update(_.tail)
           m <- mp.get
-          _ <- if m.isEmpty then IO(ExitCode.Success)
+          ec <- if m.isEmpty then IO(ExitCode.Success)
                else if l.tail.isEmpty then
                  for
                    m <- mp.get
@@ -60,7 +60,7 @@ object Main extends IOApp:
                else
                  loop(id, mp, k, ls, t)
         yield
-          ExitCode.Error
+          ec
       for
         id <- IO.ref(1L)
         // mp <- IO.ref(Map(0 -> List(0), 2 -> List(5, 168)))

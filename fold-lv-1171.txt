@@ -1,17 +1,1 @@
-# Beginner, Level 1171
-
-BOARD 6 9
-
-BLOCK 2 8
-BLOCK 3 2 4 1
-BLOCK 3 5
-BLOCK 4 8 4 9
-BLOCK 5 2 6 1
-BLOCK 5 6
-
-EMPTY 1 9
-EMPTY 2 9
-EMPTY 3 7
-EMPTY 4 7
-EMPTY 5 5
-EMPTY 6 5
+game/fold/fold-lv-1171.txt

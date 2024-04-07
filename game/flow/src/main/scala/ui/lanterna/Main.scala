@@ -50,9 +50,9 @@ object Main extends IOApp:
           _ <- id.update(_ + 1)
           _ <- ls.update(_.tail)
           l <- ls.get
-          _ <- if l.isEmpty then IO(ExitCode.Success) else loop(id, ls, t)
+          ec <- if l.isEmpty then IO(ExitCode.Success) else loop(id, ls, t)
         yield
-          ExitCode.Error
+          ec
       for
         id <- IO.ref(1L)
         // i <- List(2, 3)

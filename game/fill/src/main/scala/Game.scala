@@ -76,71 +76,65 @@ case class Game(
 
   override def apply(it: Move, mutable: Boolean): Option[Map[Int, Int]] =
     val i = -it.color-1
+    val Move(dir, _, _, _) = it
 
     val pre = LinkedHashMap[Int, Int]()
 
-    val play = state
-      .map(_.play)
-      .zipWithIndex
-      .filterNot(_._1.head.pad)
+    if dir != (0, 0)
+    then
 
-    def shift(x: Int, is: HashSet[Int], i: Int, block: Set[Point]): Boolean =
-      is += i
-      play
-        .foldLeft(true) {
-          case (false, _) => false
-          case (_, (_, `i`)) | (_, (_, `x`)) => true
-          case (_, (ls, j)) =>
-            var n = -1
-            ls
-              .drop {
+      val play = state
+        .map(_.play)
+        .zipWithIndex
+        .filterNot(_._1.head.pad)
+
+      def shift(i: Int, block: Set[Point]): Boolean =
+        val ns = HashMap[Int, Int]()
+        play
+          .foldLeft(true) {
+            case (false, _) => false
+            case (_, (_, `i`)) => true
+            case (_, (ls, j)) =>
+              var n = -1
+              ls
+                .map(_.block)
+                .foldLeft(false) {
+                  case (true, _) => true
+                  case (_, Block(_, _, _, _, _, _, _, _, ps*)) =>
+                    n += 1
+                    (block & ps.toSet).forall { pt =>
+                      wildcards.exists {
+                        case Multi(`pt`) => true
+                        case _ => false
+                      }
+                    }
+                }
+              if n > 0
+              then
                 if pre.contains(j)
                 then
-                  pre(j)
+                  false
                 else
-                  0
-              }
-              .map(_.block)
-              .foldLeft(false) {
-                case (true, _) => true
-                case (_, Block(_, _, _, _, _, _, _, _, ps*)) =>
-                  n += 1
-                  (block & ps.toSet).forall { pt =>
-                    wildcards.exists {
-                      case Multi(`pt`) => true
-                      case _ => false
-                    }
-                  }
-              }
-            if n > 0
-            then
-              if is.contains(j) // circular
-              then
-                false
+                  pre(j) = n
+                  while n > 0
+                  do
+                    n -= 1
+                    val ps = state(j).play.drop(pre(j) - n).head.block.block.toSet
+                    if !shift(j, ps)
+                    then
+                      n = -1
+                  n == 0
               else
-                if !pre.contains(j)
-                then
-                  pre(j) = 0
-                while n > 0
-                do
-                  n -= 1
-                  pre(j) += 1
-                  val ps = state(j).play.drop(pre(j)).head.block.block.toSet
-                  if !shift(i, is, j, ps)
-                  then
-                    n = -1
-                n == 0
-            else
-              true
-        }
+                true
+          }
 
-    pre += i -> -1
+      pre += i -> 0
 
-    if !shift(-1, HashSet(), i, it.block.block.toSet)
-    then
-      return None
+      if !shift(i, it.block.block.toSet)
+      then
+        return None
 
-    pre -= i
+      pre -= i
 
     if mutable
     then

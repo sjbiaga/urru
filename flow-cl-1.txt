@@ -1,9 +1,1 @@
-# Classic Pack, 5x5 easy, 1
-
-BOARD 5 5
-
-START 1 1 5 2
-START 1 3 4 2
-START 2 3 5 3
-START 1 5 4 4
-START 2 5 5 4
+game/flow/flow-cl-1.txt

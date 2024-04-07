@@ -131,12 +131,17 @@ class App(dispatcher: Dispatcher[IO],
         width = size.col * dim.cell / 2
         height = size.row * dim.cell / 2
 
-        this.addEventHandler(MouseEvent.MOUSE_PRESSED, { e =>
-          if game.state(i).play.head.pad
+        this.addEventHandler(MouseEvent.MOUSE_PRESSED, { _ =>
+          if game.selectionMode == 0
           then
-            item = i
-            val drag = false -> (true -> (item -> (0, 0)))
-            dispatch(Event(None, Some(drag)))
+            if game.state(i).play.head.pad
+            then
+              item = i
+              val drag = false -> (true -> (item -> (0, 0)))
+              dispatch(Event(None, Some(drag)))
+            else
+              val drag = false -> (false -> (i -> (0, 0)))
+              dispatch(Event(None, Some(drag)))
         })
   }
 
@@ -397,11 +402,13 @@ object App:
                                 game.dropOut
                                 game.pads(app, true)
                               board.redraw(game)()
-                        else // double click
-                          assert(move)
+                        else if move
+                        then
                           game(-i-1).dragOut
                           game(app)
                           game.pads(app, true)
+                        else
+                          game(-i-1)
                       }
 
                     else if game.selectionMode < 0
@@ -410,7 +417,9 @@ object App:
 
                     else if game.selectionMode > 0
                     then
-                      ( if key.get.getCode() eq KeyCode.ESCAPE
+                        val keyCode = key.get.getCode()
+
+                        if keyCode eq KeyCode.ESCAPE
                         then
                           IO {
                             game.dropOut
@@ -418,7 +427,7 @@ object App:
                             game.pads(app, true)
                           }
 
-                        else if key.get.getCode() eq KeyCode.BACK_SPACE
+                        else if keyCode eq KeyCode.BACK_SPACE
                         then
                           IO {
                             game.dragOn
@@ -428,7 +437,7 @@ object App:
                               game.pads(app, true)
                           }
 
-                        else if key.get.getCode() eq KeyCode.ENTER
+                        else if keyCode eq KeyCode.ENTER
                         then
                           IO {
                             if !game.dragOff(elapsed)
@@ -438,160 +447,162 @@ object App:
                             board.redraw(game)()
                           }
 
-                        else if key.get.getCode() eq KeyCode.DIGIT3
+                        else if keyCode eq KeyCode.DIGIT3
                         then
                           IO {
                             game.showAxes = !game.showAxes
                             board.redraw(game)()
                           }
-                        else if key.get.getCode() eq KeyCode.DIGIT2
+                        else if keyCode eq KeyCode.DIGIT2
                         then
                           restart(idleTimeR, startedR)
 
                         else
                           IO.unit
-                      )
-
-                    else if key.get.getCode() eq KeyCode.ESCAPE
-                    then
-                      exitR.set(true) >> IO {
-                        println("Use TAB to switch colors, - and + to drag'n'drop, / for pad.")
-                        println("Use arrows <-, ->, ^, v to (un)fold left, right, up, down.")
-                        println("Use # to toggle grid, @ to restart game, | to pause.")
-                        println("Use keys BACKSPACE and ENTER to undo or redo.")
-                      }
-                    else if paused
-                    then
-                      idleTimeR.update(_ + elapsed) >>
-                      ( if key.get.getCode() eq KeyCode.BACK_SLASH
-                        then
-                         pausedR.set(false)
-                        else
-                          IO.unit
-                      )
-
-                    else if arrows.keySet.contains(key.get.getCode())
-                    then
-                      IO {
-                        val dir = arrows(key.get.getCode())
-                        val i = -game.nowPlay.color-1
-                        val m = game.state(i).play.size
-
-                        if game.move(dir)(elapsed)
-                        then
-                          if game.pending.nonEmpty
-                          then
-                            board.redraw(game)()
-                            game.pads(app)
-                          else
-                            val n = game.state(i).play.size
-                            if n < m
-                            then
-                              board.redraw(game)()
-                            else
-                              game(app)
-                      }
-
-                    else if key.get.getCode() eq KeyCode.DIGIT3
-                    then
-                      IO {
-                        game.showAxes = !game.showAxes
-                        board.redraw(game)()
-                      }
-                    else if key.get.getCode() eq KeyCode.DIGIT2
-                    then
-                      restart(idleTimeR, startedR)
-
-                    else if key.get.getCode() eq KeyCode.BACK_SLASH
-                    then
-                      pausedR.set(true)
-
-                    else if key.get.getCode() eq KeyCode.COMMA
-                    then
-                      for
-                        cwd <- Files[IO].currentWorkingDirectory
-                        s = Stream.emit[IO, String] {
-                          import spray.json.enrichAny
-                          import fill.util.JsonFormats.GameJsonProtocol._
-                          game.toJson.prettyPrint
-                        }
-                        name = Pisc.uuid(app.name)
-                        _ <- s.through(Files[IO].writeUtf8Lines(cwd / (name + ".json"))).compile.drain
-                      yield ()
-
-                    else if key.get.getCode() eq KeyCode.PERIOD // PiScala
-                    then
-                      for
-                        _ <- Pisc(app.name, game)
-                      yield ()
-
-                    else if key.get.getCode() eq KeyCode.DIGIT7
-                    then
-                      IO {
-                        game.showJust = None
-                        app.prompt(3).visible = false
-                      }
-
-                    else if key.get.getCode() eq KeyCode.DIGIT8
-                    then
-                      IO { game.showJust = game.showJust.map(!_).orElse(Some(true)) }
-
-                    else if key.get.getCode() eq KeyCode.MINUS
-                    then
-                      IO {
-                        game.dragOut
-                        game(app)
-                        game.pads(app, true)
-                      }
-
-                    else if key.get.getCode() eq KeyCode.EQUALS
-                    then
-                      IO {
-                        game.dropIn(1)
-                        if game.selectionMode != 0
-                        then
-                          board.redraw(game)()
-                          game.pads(app, true)
-                      }
-
-                    else if key.get.getCode() eq KeyCode.SLASH
-                    then
-                      IO {
-                        game.showPad = !game.showPad
-                        app.pads.visible = game.showPad
-                      }
-
-                    else if key.get.getCode() eq KeyCode.BACK_SPACE
-                    then
-                      IO {
-                        if game.undo()(elapsed)
-                        then
-                          board.redraw(game)()
-                          game.pads(app)
-                      }
-
-                    else if key.get.getCode() eq KeyCode.ENTER
-                    then
-                      IO {
-                        if game.redo()(elapsed)
-                        then
-                          if game.pending.nonEmpty
-                          then
-                            board.redraw(game)()
-                            game.pads(app)
-                          else
-                            game(app)
-                            game.pads(app, true)
-                      }
-
-                    else if key.get.getCode() eq KeyCode.TAB
-                    then
-                      IO { game.switch }
 
                     else
-                      IO.unit
+                      val keyCode = key.get.getCode()
 
-                  )
+                      if keyCode eq KeyCode.ESCAPE
+                      then
+                        exitR.set(true) >> IO {
+                          println("Use TAB to switch colors, - and + to drag'n'drop, / for pad.")
+                          println("Use arrows ←, →, ↑, ↓ to move left, right, up, down.")
+                          println("Use # to toggle grid, @ to restart game, | to pause.")
+                          println("Use keys BACKSPACE and ENTER to undo or redo.")
+                        }
+                      else if paused
+                      then
+                        idleTimeR.update(_ + elapsed) >>
+                        ( if keyCode eq KeyCode.BACK_SLASH
+                          then
+                           pausedR.set(false)
+                          else
+                            IO.unit
+                        )
+
+                      else if arrows.keySet.contains(keyCode)
+                      then
+                        IO {
+                          val dir = arrows(keyCode)
+                          val i = -game.nowPlay.color-1
+                          val m = game.state(i).play.size
+
+                          if game.move(dir)(elapsed)
+                          then
+                            if game.pending.nonEmpty
+                            then
+                              board.redraw(game)()
+                              game.pads(app)
+                            else
+                              val n = game.state(i).play.size
+                              if n < m
+                              then
+                                board.redraw(game)()
+                              else
+                                game(app)
+                        }
+
+                      else if keyCode eq KeyCode.DIGIT3
+                      then
+                        IO {
+                          game.showAxes = !game.showAxes
+                          board.redraw(game)()
+                        }
+                      else if keyCode eq KeyCode.DIGIT2
+                      then
+                        restart(idleTimeR, startedR)
+
+                      else if keyCode eq KeyCode.BACK_SLASH
+                      then
+                        pausedR.set(true)
+
+                      else if keyCode eq KeyCode.COMMA
+                      then
+                        for
+                          cwd <- Files[IO].currentWorkingDirectory
+                          s = Stream.emit[IO, String] {
+                            import spray.json.enrichAny
+                            import fill.util.JsonFormats.GameJsonProtocol._
+                            game.toJson.prettyPrint
+                          }
+                          name = Pisc.uuid(app.name)
+                          _ <- s.through(Files[IO].writeUtf8Lines(cwd / (name + ".json"))).compile.drain
+                        yield ()
+
+                      else if keyCode eq KeyCode.PERIOD // PiScala
+                      then
+                        for
+                          _ <- Pisc(app.name, game)
+                        yield ()
+
+                      else if keyCode eq KeyCode.DIGIT7
+                      then
+                        IO {
+                          game.showJust = None
+                          app.prompt(3).visible = false
+                        }
+
+                      else if keyCode eq KeyCode.DIGIT8
+                      then
+                        IO { game.showJust = game.showJust.map(!_).orElse(Some(true)) }
+
+                      else if keyCode eq KeyCode.MINUS
+                      then
+                        IO {
+                          game.dragOut
+                          game(app)
+                          game.pads(app, true)
+                        }
+
+                      else if keyCode eq KeyCode.EQUALS
+                      then
+                        IO {
+                          game.dropIn(1)
+                          if game.selectionMode != 0
+                          then
+                            board.redraw(game)()
+                            game.pads(app, true)
+                        }
+
+                      else if keyCode eq KeyCode.SLASH
+                      then
+                        IO {
+                          game.showPad = !game.showPad
+                          app.pads.visible = game.showPad
+                        }
+
+                      else if keyCode eq KeyCode.BACK_SPACE
+                      then
+                        IO {
+                          if game.undo()(elapsed)
+                          then
+                            board.redraw(game)()
+                            game.pads(app)
+                        }
+
+                      else if keyCode eq KeyCode.ENTER
+                      then
+                        IO {
+                          if game.redo()(elapsed)
+                          then
+                            if game.pending.nonEmpty
+                            then
+                              board.redraw(game)()
+                              game.pads(app)
+                            else
+                              game(app)
+                              game.pads(app, true)
+                        }
+
+                      else if keyCode eq KeyCode.TAB
+                      then
+                        IO { game.switch }
+
+                      else
+                        IO.unit
+
+                    )
 
             _ <- IO { game(app, paused, idleTime) } // prompt
           yield ()
