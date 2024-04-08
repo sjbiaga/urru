@@ -12,7 +12,8 @@ lazy val root = (project in file("."))
   .aggregate(`game-flow`, `game-fold`, `game-fill`)
   .settings(
     name := "urru",
-    organization := "sjbiaga",
+    organization := "sjb.ia.ga",
+    organizationName := "sjbiaga",
     version := "1.0",
     maxErrors := 5,
     scalaVersion := "3.4.2-RC1",
@@ -24,7 +25,8 @@ lazy val root = (project in file("."))
 lazy val base = (project in file("base"))
   .settings(
     name := "base",
-    organization := "sjbiaga",
+    organization := "sjb.ia.ga",
+    organizationName := "sjbiaga",
     version := "1.0",
     maxErrors := 5,
     scalaVersion := "3.4.2-RC1",
@@ -37,7 +39,8 @@ lazy val grid = (project in file("grid"))
   .dependsOn(base)
   .settings(
     name := "grid",
-    organization := "sjbiaga",
+    organization := "sjb.ia.ga",
+    organizationName := "sjbiaga",
     version := "1.0",
     maxErrors := 5,
     scalaVersion := "3.4.2-RC1",
@@ -50,7 +53,8 @@ lazy val game = (project in file("game"))
   .dependsOn(grid)
   .settings(
     name := "game",
-    organization := "sjbiaga",
+    organization := "sjb.ia.ga",
+    organizationName := "sjbiaga",
     version := "1.0",
     maxErrors := 5,
     scalaVersion := "3.4.2-RC1",
@@ -64,7 +68,8 @@ lazy val `game-flow` = (project in file("game/flow"))
   .enablePlugins(DockerPlugin)
   .settings(
     name := "game.flow",
-    organization := "sjbiaga",
+    organization := "sjb.ia.ga",
+    organizationName := "sjbiaga",
     version := "1.0",
     maxErrors := 5,
     scalaVersion := "3.4.2-RC1",
@@ -78,7 +83,8 @@ lazy val `game-fold` = (project in file("game/fold"))
   .enablePlugins(DockerPlugin)
   .settings(
     name := "game.fold",
-    organization := "sjbiaga",
+    organization := "sjb.ia.ga",
+    organizationName := "sjbiaga",
     version := "1.0",
     maxErrors := 5,
     scalaVersion := "3.4.2-RC1",
@@ -92,7 +98,8 @@ lazy val `game-fill` = (project in file("game/fill"))
   .enablePlugins(DockerPlugin)
   .settings(
     name := "game.fill",
-    organization := "sjbiaga",
+    organization := "sjb.ia.ga",
+    organizationName := "sjbiaga",
     version := "1.0",
     maxErrors := 5,
     scalaVersion := "3.4.2-RC1",

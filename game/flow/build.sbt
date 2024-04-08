@@ -9,8 +9,8 @@ libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "3.2.18" % Test
 )
 
-// Compile / mainClass := Some("urru.game.flow.ui.scalafx.Main") // run / fork := false
-Compile / mainClass := Some("urru.game.flow.ui.lanterna.Main")
+// Compile / mainClass := Some("urru.game.flow.ui.lanterna.Main") // run / fork := false
+Compile / mainClass := Some("urru.game.flow.ui.scalafx.Main")
 Compile / run / fork := true
 
 //https://stackoverflow.com/questions/25144484/sbt-assembly-deduplication-found-error

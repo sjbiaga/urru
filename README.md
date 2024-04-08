@@ -7,6 +7,18 @@ A `Game` is composed of colored "*items*" that correspond to:
 - folding blocks in the case of `game-fold`, and
 - compact blocks in the case of `game-fill`.
 
+Besides the intuitive `UI` that allows the player to use the mouse, there is also
+a keyboard interface: for a short description of (some of) the keys, press
+`ESCAPE`. In order to play a certain level, there is a file format per game
+described in, respectively, the files "`flow.txt`", "`fold.txt`" and
+"`fill.txt`": these files should be copied and edited to provide a level. Then,
+the file names must be programmatically specified in one of the two `Main.scala`
+source files, either in the package `ui.lanterna` (for playing in a limited
+`ANSI` terminal) or `ui.scalafx` (full `JavaFX` graphics).
+
+`Path`s
+-------
+
 Per game, each item holds a "linked list" that grows by each move: it is called
 a "path", because the `case class` - named `Path` for a game - has a `parent`
 field through which the "list" is linked back to `None` - the "empty" start of
@@ -210,13 +222,36 @@ would (snap and) join at ninety degrees upon a bridge clue, this move is
 prohibited: not that it couldn't make a pending, but otherwise there might be two
 pendings (one "collinear", one "not collinear"), whereas at most one pending is
 assumed.
+
 For the `game-fold`, a move may not be possible, because a block can at most fold
 to its initial shape, that cannot be eliminated.
+
 For the `game-fill`, although `drag` (move into the pad) and `drop` (move out of
 the pad) are also accounted for in the `undo`/`redo` lists, a cascade of `undo`s of
 other blocks leading to a cascade of `undo`s of yet other moves, may become circular
 before the blocks can be "dragged" out from the grid onto the pad, so a move
 is *not* always possible.
+
+The condition when a move is abandoned (not when it is an `undo`) occurs in a
+breadth-first-search manner. To an item ("visited node") there correspond
+several blocks that are the moves that need to be `undo`ne. For each such block
+in turn, there are searched the items that require several `undo`s (until the
+former block does not collide with a latter `undo`ne block). However, if for any
+two different items attempted to be `undo`ne (one that has been visited and one
+that is being visited), there are any blocks to be `undo`ne that have points in
+common, this is the condition for the initial move to be abandoned.
+
+Initially, for the item that is to be moved, there are two blocks that must not
+collide (with other items' `undo`ne blocks): the block before the move and the
+block after the move (as with the rest, actually). When dropping a block onto
+the grid from the pad, the former block is empty.
+
+It is true that a move may be possible, but not with this algorithm. The
+drawback is, of course, that the requirement for any two `undo`ne blocks,
+corresponding to two different items, not to collide, is too strong (because any
+of these do not occur both at once). Nevertheless, it integrates seamlessly with
+the `undo`-`redo` mechanism, and can always be ameliorated by previously manually
+dragging out items that otherwise "stuck" the move onto the pad.
 
 For the cases when `undo`s must precede a possible move in order to make it occur,
 it is resorted to the very methods of `undo` (and `redo`), only which do not
