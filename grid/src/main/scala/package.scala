@@ -27,10 +27,10 @@ package urru:
         val max: (Int, Int)
 
       abstract trait Sides:
-        val up: Seq[Int]
-        val down: Seq[Int]
-        val left: Seq[Int]
-        val right: Seq[Int]
+        val up: Seq[Seq[Int]]
+        val down: Seq[Seq[Int]]
+        val left: Seq[Seq[Int]]
+        val right: Seq[Seq[Int]]
 
     object Implicits:
 

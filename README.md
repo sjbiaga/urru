@@ -5,7 +5,7 @@ A `Game` is composed of colored "*items*" that correspond to:
 
 - lines between pairs of points, in the case of `game-flow`;
 - folding blocks in the case of `game-fold`, and
-- compact (i.e., w/o holes) blocks in the case of `game-fill`.
+- compact blocks in the case of `game-fill`.
 
 Per game, each item holds a "linked list" that grows by each move: it is called
 a "path", because the `case class` - named `Path` for a game - has a `parent`
