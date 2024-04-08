@@ -83,58 +83,86 @@ case class Game(
     if dir != (0, 0)
     then
 
-      val play = state
+      val bs = state
         .map(_.play)
         .zipWithIndex
         .filterNot(_._1.head.pad)
+        .map(_.map(_.block.block.toSet) -> _)
+        .map(_.swap)
+        .toMap
+
+      val bfs = HashMap[Int, Seq[Set[Point]]]()
 
       def shift(i: Int, block: Set[Point]): Boolean =
         val ns = HashMap[Int, Int]()
-        play
+        if bs
           .foldLeft(true) {
             case (false, _) => false
-            case (_, (_, `i`)) => true
-            case (_, (ls, j)) =>
-              var n = -1
-              ls
-                .map(_.block)
-                .foldLeft(false) {
-                  case (true, _) => true
-                  case (_, Block(_, _, _, _, _, _, _, _, ps*)) =>
-                    n += 1
-                    (block & ps.toSet).forall { pt =>
+            case (_, (`i`, _)) => true
+            case (_, (j, _)) if bfs.contains(j) =>
+              bfs(j)
+                .foldLeft(true) {
+                  case (false, _) => false
+                  case (_, ps) =>
+                    (block & ps).forall { pt =>
                       wildcards.exists {
                         case Multi(`pt`) => true
                         case _ => false
                       }
                     }
                 }
+            case (_, (j, ls)) =>
+              var n = 0
+              ls
+                .foldLeft(false) {
+                  case (true, _) => true
+                  case (_, ps) =>
+                    (block & ps).forall { pt =>
+                      wildcards.exists {
+                        case Multi(`pt`) => true
+                        case _ => false
+                      }
+                    } || { n += 1; false }
+                }
               if n > 0
               then
-                if pre.contains(j)
-                then
-                  false
-                else
-                  pre(j) = n
-                  while n > 0
-                  do
-                    n -= 1
-                    val ps = state(j).play.drop(pre(j) - n).head.block.block.toSet
-                    if !shift(j, ps)
-                    then
-                      n = -1
-                  n == 0
-              else
-                true
+                ns(j) = n
+              true
           }
+        then
+          ns
+          .foldLeft(true) {
+            case (false, _) => false
+            case (_, (j, n)) =>
+              bfs(j) = bs(j).take(n)
+              bs(j)
+                .tail
+                .take(n)
+                .foldLeft(true) {
+                  case (false, _) => false
+                  case (_, ps) =>
+                    shift(j, ps)
+                }
+          }
+        else
+          false
 
-      pre += i -> 0
+      val prior =
+        if !dir
+        then
+          Set.empty
+        else
+          it.prior.block.block.toSet
+
+      bfs += i -> Seq(prior, it.block.block.toSet)
 
       if !shift(i, it.block.block.toSet)
       then
         return None
 
-      pre -= i
+      bfs -= i
+
+      bfs.foreach(pre += _ -> _.size)
 
     if mutable
     then
@@ -252,7 +280,7 @@ case class Game(
           None
 
       }.exists {
-        case Some((it, in)) =>
+        case Some(it -> in) =>
           this(it, in)(elapsed)
 
         case _ =>
@@ -447,7 +475,6 @@ object Game:
   extension(self: Block)
     // moveable w/o grid
     def apply(size: Point, dir: (Int, Int), clues: Set[Clue]): Boolean =
-      val i = -self.color-1
       self(size)(dir).exists {
         _.forall { pt =>
           !clues.exists {
@@ -459,7 +486,6 @@ object Game:
 
     // moveable w/ grid
     def apply(size: Point, dir: (Int, Int), clues: Set[Clue], grid: AnyMap[Point, Cell]): Boolean =
-      val i = -self.color-1
       self(size)(dir).exists { ps =>
         ps.forall { pt =>
           !clues.exists {

@@ -14,6 +14,8 @@ import tense.intensional.Data.DragAndDrop
 
 import urru.grid.Game.Feature
 
+import Game._
+
 
 object DnD:
 

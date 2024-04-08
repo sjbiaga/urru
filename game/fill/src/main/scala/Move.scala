@@ -5,7 +5,7 @@ package fill
 import scala.collection.{ Map => AnyMap }
 import scala.collection.mutable.{ ListBuffer => MutableList }
 
-import common.grid.{ row, x, col, unary_-, + }
+import common.grid.{ row, x, col, unary_-, unary_!, + }
 
 import urru.grid.shape
 
@@ -21,6 +21,9 @@ case class Move(
 
   override val by = block.delta + (1 x 1)
   override val at = by + -dir
+
+  lazy val prior: Move =
+    Move((-1, -1), block(-1 x -1, -dir, force = true).get, color, -1L)
 
   // move / redo
   override def apply(clues: Set[Clue])(filter: Point => Boolean) = block
@@ -59,7 +62,8 @@ object Move:
   def apply(block: Block,
             dnd: Boolean = true,
             empty: Boolean = false) =
-    new Move(if dnd then (1, -1) else (0, 0),
+    val dir = if dnd then (1, -1) else (0, 0)
+    new Move(dir,
              if empty then
                Block(block.delta,
                      block.min, block.max,

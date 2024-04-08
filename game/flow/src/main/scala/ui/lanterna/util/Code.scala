@@ -582,7 +582,7 @@ object Code extends Enumeration:
                 i += ss.size
 
                 last
- 
+
               case _ =>
 
                 last
