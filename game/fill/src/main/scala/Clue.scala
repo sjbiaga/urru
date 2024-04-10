@@ -20,8 +20,8 @@ object Clue:
         .foldLeft(Seq[Seq[Int]]()) {
           case (r, (it, i)) => r :+
             it.foldLeft(Seq[Int]()) {
-              case (r, pt) if !it.contains(pt + dir) => fun(pt) +: r
-              case (r, _) => r
+              case (r, pt) if it.contains(pt + dir) => r
+              case (r, pt) => fun(pt) +: r
             }
         }
 
@@ -58,11 +58,11 @@ object Clue:
 
     private def this(delta: Point, color: Int, ps: Point*) =
       this(delta, color, ps*)
-          (ps.groupBy(_.col).values
-          ,ps.groupBy(_.row).values)
+          (ps.groupBy(_.col).toSeq.sortBy(_._1).collect(_._2)
+          ,ps.groupBy(_.row).toSeq.sortBy(_._1).collect(_._2))
 
     def this(color: Int, ps: Point*) =
-      this(0 x 0, color, ps.sorted*)
+      this(0 x 0, color, ps*)
 
 ////////////////////////////////////////////////////////////////////////////////
 

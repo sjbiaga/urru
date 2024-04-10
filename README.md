@@ -232,26 +232,29 @@ other blocks leading to a cascade of `undo`s of yet other moves, may become circ
 before the blocks can be "dragged" out from the grid onto the pad, so a move
 is *not* always possible.
 
-The condition when a move is abandoned (not when it is an `undo`) occurs in a
+[The condition when a move is abandoned (not when it is an `undo`) occurs in a
 breadth-first-search manner. To an item ("visited node") there correspond
 several blocks that are the moves that need to be `undo`ne. For each such block
 in turn, there are searched the items that require several `undo`s (until the
 former block does not collide with a latter `undo`ne block). However, if for any
 two different items attempted to be `undo`ne (one that has been visited and one
 that is being visited), there are any blocks to be `undo`ne that have points in
-common, this is the condition for the initial move to be abandoned.
+common - collide -, this is the condition for the initial move to be abandoned.
 
 Initially, for the item that is to be moved, there are two blocks that must not
 collide (with other items' `undo`ne blocks): the block before the move and the
 block after the move (as with the rest, actually). When dropping a block onto
-the grid from the pad, the former block is empty.
+the grid from the pad, the former block is empty - thus, it never collides.
 
-It is true that a move may be possible, but not with this algorithm. The
-drawback is, of course, that the requirement for any two `undo`ne blocks,
+It is true that a move may be possible, but not with this algorithm.
+
+The drawback is, of course, that the requirement for any two `undo`ne blocks,
 corresponding to two different items, not to collide, is too strong (because any
 of these do not occur both at once). Nevertheless, it integrates seamlessly with
 the `undo`-`redo` mechanism, and can always be ameliorated by previously manually
 dragging out items that otherwise "stuck" the move onto the pad.
+
+The advantage is that impossible moves are not possible.]
 
 For the cases when `undo`s must precede a possible move in order to make it occur,
 it is resorted to the very methods of `undo` (and `redo`), only which do not

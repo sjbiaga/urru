@@ -72,6 +72,7 @@ object Read:
 
           case "BLOCK"
               if ps.nonEmpty
+              && ps.size == ps2.size
               && r.forall {
                 case Block(_, _, _, block*) =>
                   (ps2 & block.toSet).forall { pt =>
