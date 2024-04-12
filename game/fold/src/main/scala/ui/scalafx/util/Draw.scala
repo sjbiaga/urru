@@ -107,7 +107,7 @@ object Draw:
 
     }
 
-    def draw(game: Game, play: Play, redraw: Boolean = false): Unit = runLater {
+    def draw(game: Game, play: Play, redraw: Boolean = false): Unit =
       play.head match
         case Block(_, _, color, block*) =>
           val gc = self.getGraphicsContext2D()
@@ -117,7 +117,6 @@ object Draw:
           else
             draw(gc, color, block.drop(block.size / 2)*)
             draw(game)()
-    }
 
     private def draw(gc: GraphicsContext, color: Int, block: Point*): Unit =
       gc.setFill(colors(color))

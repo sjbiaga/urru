@@ -144,13 +144,10 @@ object Draw:
 
     }
 
-    def draw: Block => Unit = {
+    def draw(block: Block): Unit = block match
       case Block(_, _, _, _, _, _, _, color, ps*) =>
-        runLater {
-          val gc = self.getGraphicsContext2D()
-          draw(gc, color, ps*)
-        }
-    }
+        val gc = self.getGraphicsContext2D()
+        draw(gc, color, ps*)
 
     private def draw(gc: GraphicsContext, color: Int, block: Point*): Unit =
       gc.setFill(colors(color))

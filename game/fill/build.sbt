@@ -36,7 +36,6 @@ docker / dockerfile := {
     from("openjdk:17-oracle")
     add(artifact, artifactTargetPath)
 
-    add(dockerFiles("fill-0-0.txt"), "/txt/fill-0-0.txt")
     add(dockerFiles("fill-2-168.txt"), "/txt/fill-2-168.txt")
     add(dockerFiles("fill-2-5.txt"), "/txt/fill-2-5.txt")
     add(dockerFiles("fill-3-12.txt"), "/txt/fill-3-12.txt")

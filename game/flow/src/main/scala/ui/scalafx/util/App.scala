@@ -12,10 +12,7 @@ import cats.effect.std.Dispatcher
 import fs2.Stream
 import fs2.io.file.{ Files, Path }
 
-import com.googlecode.lanterna.terminal.Terminal
-import com.googlecode.lanterna.input.KeyType
-
-import scalafx.application.Platform.runLater
+import scalafx.application.Platform.{ exit, runLater }
 import scalafx.scene.Scene
 import scalafx.scene.canvas.Canvas
 import javafx.scene.input.{ KeyCode, KeyEvent, MouseEvent }
@@ -182,6 +179,7 @@ object App:
         println("Use arrows ←, →, ↑, ↓ to move left, right, up, down.")
         println("Use # to toggle axes, @ to restart game, | to pause.")
         println("Use keys BACKSPACE and ENTER to undo or redo.")
+        exit()
       }
 
       def loop(idleTimeR: Ref[IO, Long],
@@ -258,7 +256,7 @@ object App:
                       exitR.set(true) >> usage
                     else if drag.nonEmpty
                     then
-                       IO {
+                      IO {
                         val (undo, (i, diff)) = drag.get
                         game(-i/2-1)
                         val (odd, _) = game.nowStart
