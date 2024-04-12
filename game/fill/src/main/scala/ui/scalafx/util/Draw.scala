@@ -4,6 +4,7 @@ package fill
 package ui.scalafx
 package util
 
+import scalafx.application.Platform.runLater
 import scalafx.scene.canvas.Canvas
 import scalafx.scene.paint.Color
 import scalafx.scene.shape.ArcType
@@ -43,7 +44,8 @@ object Draw:
 
     def redraw(game: Game)(lock: Boolean = false,
                            x: Double = 0, y: Double = 0,
-                           c: Int = 0, ps: Point*): Unit =
+                           c: Int = 0, ps: Point*): Unit = runLater {
+
       val size = game.size
 
       val gc = self.getGraphicsContext2D()
@@ -140,10 +142,15 @@ object Draw:
           case _ =>
         }
 
-    def draw(block: Block): Unit = block match
+    }
+
+    def draw: Block => Unit = {
       case Block(_, _, _, _, _, _, _, color, ps*) =>
-        val gc = self.getGraphicsContext2D()
-        draw(gc, color, ps*)
+        runLater {
+          val gc = self.getGraphicsContext2D()
+          draw(gc, color, ps*)
+        }
+    }
 
     private def draw(gc: GraphicsContext, color: Int, block: Point*): Unit =
       gc.setFill(colors(color))
@@ -157,17 +164,18 @@ object Draw:
                     dim.block, dim.block)
       }
 
-    def draw(game: Game, i: Int): Unit =
+    def draw(game: Game, i: Int): Unit = runLater {
       val gc = self.getGraphicsContext2D()
       val color = -i-1
       val play = game.state(i).play
       draw(gc, 1, (play(1).block.block diff play(0).block.block)*)
       draw(gc, color, (play(0).block.block diff play(1).block.block)*)
       draw(game)()
+    }
 
     // multi ///////////////////////////////////////////////////////////////////
 
-    def draw(game: Game)(ps: Point*): Unit =
+    private def draw(game: Game)(ps: Point*): Unit =
       val gc = self.getGraphicsContext2D()
 
       game.wildcards.foreach {
@@ -228,11 +236,11 @@ object Draw:
 
   extension(self: (List[Canvas], Int, Int))
 
-    def redraw(game: Game): Unit =
+    def redraw(game: Game): Unit = runLater {
 
       def draw(gc: GraphicsContext, head: Play, block: Block): Unit = block match
         case Block(_, _, _, _, _, _, _, c, ps*) =>
-          val color = if game.selectionMode == 0 && head.pad then c else 2
+          val color = if game.selectionMode == 0 && head.pad then c else 1
           gc.setFill(colors(color))
           gc.setStroke(colors(color))
 
@@ -261,6 +269,8 @@ object Draw:
           val it = game.state(j).play
           val gc = pad(j - i).getGraphicsContext2D()
           draw(gc, it.head, it.last.block)
+
+    }
 
 
 ////////////////////////////////////////////////////////////////////////////////

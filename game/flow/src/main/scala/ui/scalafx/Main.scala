@@ -17,15 +17,13 @@ import App.{ Event, apply }
 
 object Main extends IOApp:
 
-  def app(args: List[String],
-          name: String, game: Game,
+  def app(name: String, game: Game,
           eventR: Ref[IO, Deferred[IO, Event]],
           loopR: Ref[IO, Deferred[IO, Unit]]): Resource[IO, App] =
     for
-      dispatcher <- Dispatcher[IO]
-      app = new App(dispatcher, name, game, eventR, loopR)
-      _ <- IO.interruptible { app.main(args.toArray) }.background
-    yield app
+      dispatcher <- Dispatcher.sequential[IO]
+    yield
+      new App(dispatcher, name, game, eventR, loopR)
 
   override def run(args: List[String]): IO[ExitCode] =
 
@@ -41,7 +39,11 @@ object Main extends IOApp:
         eventR <- IO.ref(eventD)
         loopD <- Deferred[IO, Unit]
         loopR <- IO.ref(loopD)
-        _ <- app(args, s"flow-$t-$i", game, eventR, loopR).use(game(_, eventR, loopR))
+        _ <- app(s"flow-$t-$i", game, eventR, loopR).use { app =>
+          game(app, eventR, loopR).background.use { _ =>
+            IO.interruptible { app.main(args.toArray) }
+          }
+        }
         _ <- id.update(_ + 1)
         _ <- ls.update(_.tail)
         l <- ls.get

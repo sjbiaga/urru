@@ -4,6 +4,7 @@ package fold
 package ui.scalafx
 package util
 
+import scalafx.application.Platform.runLater
 import scalafx.scene.canvas.Canvas
 import scalafx.scene.paint.Color
 import scalafx.scene.shape.ArcType
@@ -41,7 +42,8 @@ object Draw:
 
   extension(self: Canvas)
 
-    def redraw(game: Game): Unit =
+    def redraw(game: Game): Unit = runLater {
+
       val size = game.size
 
       val gc = self.getGraphicsContext2D()
@@ -103,7 +105,9 @@ object Draw:
 
       draw(game)()
 
-    def draw(game: Game, play: Play, redraw: Boolean = false): Unit =
+    }
+
+    def draw(game: Game, play: Play, redraw: Boolean = false): Unit = runLater {
       play.head match
         case Block(_, _, color, block*) =>
           val gc = self.getGraphicsContext2D()
@@ -113,6 +117,7 @@ object Draw:
           else
             draw(gc, color, block.drop(block.size / 2)*)
             draw(game)()
+    }
 
     private def draw(gc: GraphicsContext, color: Int, block: Point*): Unit =
       gc.setFill(colors(color))
@@ -128,7 +133,8 @@ object Draw:
 
     // multi ///////////////////////////////////////////////////////////////////
 
-    def draw(game: Game)(): Unit =
+    def draw(game: Game)(): Unit = runLater {
+
       val gc = self.getGraphicsContext2D()
 
       game.wildcards.foreach {
@@ -164,6 +170,8 @@ object Draw:
 
         case _ =>
       }
+
+    }
 
 ////////////////////////////////////////////////////////////////////////////////
 

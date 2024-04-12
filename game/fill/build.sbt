@@ -45,6 +45,7 @@ docker / dockerfile := {
     add(dockerFiles("fill-7-1.txt"), "/txt/fill-7-19.txt")
     add(dockerFiles("fill-jp-pb-3-125.txt"), "/txt/fill-jp-pb-3-125.txt")
     add(dockerFiles("fill-jp-pb-3-160.txt"), "/txt/fill-jp-pb-3-160.txt")
+    add(dockerFiles("fill-btp-d-20240409-3.txt"), "/txt/fill-btp-d-20240409-3.txt")
     add(dockerFiles("fill.txt"), "/txt/fill.txt")
 
     entryPoint("java", "-jar", artifactTargetPath)

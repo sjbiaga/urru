@@ -4,6 +4,7 @@ package flow
 package ui.scalafx
 package util
 
+import scalafx.application.Platform.runLater
 import scalafx.scene.canvas.Canvas
 import scalafx.scene.paint.Color
 import Color._
@@ -40,7 +41,8 @@ object Draw:
 
   extension(self: Canvas)
 
-    def redraw(game: Game): Unit =
+    def redraw(game: Game): Unit = runLater {
+
       val size = game.size
 
       val gc = self.getGraphicsContext2D()
@@ -147,6 +149,8 @@ object Draw:
         case _ =>
       }
 
+    }
+
     private def draw(gc: GraphicsContext, start: Point, color: Int) =
       val (row, col) = start
       val letter = ('A' + -1-color).toChar
@@ -161,11 +165,12 @@ object Draw:
                   row * dim.cell + dim.mid + dim.start / 4)
 
     def draw(from: Point, to: Point, color: Int,
-             start: Boolean, tip: Boolean, over: Boolean): Unit =
+             start: Boolean, tip: Boolean, over: Boolean): Unit = runLater {
       val gc = self.getGraphicsContext2D()
       gc.setStroke(colors(color))
       gc.setLineWidth(dim.line)
       draw(gc, from + (-1, -1), to + (-1, -1), color, start, tip, over)
+    }
 
     private def draw(gc: GraphicsContext,
                      from: Point, to: Point, color: Int,

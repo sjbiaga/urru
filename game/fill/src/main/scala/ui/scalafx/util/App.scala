@@ -13,6 +13,7 @@ import fs2.io.file.{ Files, Path }
 import com.googlecode.lanterna.terminal.Terminal
 import com.googlecode.lanterna.input.KeyType
 
+import scalafx.application.Platform.runLater
 import scalafx.scene.Scene
 import scalafx.scene.canvas.Canvas
 import javafx.scene.input.{ KeyCode, KeyEvent, InputEvent, MouseEvent }
@@ -194,15 +195,17 @@ class App(dispatcher: Dispatcher[IO],
       children = Text("• PENDING") :: (0 until game.state.size)
         .foldLeft(List[Canvas]()) { (ls, i) =>
           val color = -i-1
-          val block = new Canvas:
+          ls :+ new Canvas:
             width = 2*dim.grid + dim.block / 2
             height = 2*dim.grid + dim.block / 2
+
             visible = false
-          val gc = block.getGraphicsContext2D()
-          gc.setFill(colors(color))
-          gc.setStroke(colors(color))
-          gc.fillRect(dim.grid, dim.grid, dim.block, dim.block)
-          ls :+ block
+
+            val gc = this.getGraphicsContext2D()
+            gc.setFill(colors(color))
+            gc.setStroke(colors(color))
+            gc.fillRect(dim.grid, dim.grid, dim.block, dim.block)
+
         }
 
   val current = new Canvas:
@@ -255,6 +258,9 @@ class App(dispatcher: Dispatcher[IO],
     prompt(3).visible = false
     game(App.this, false, 0L)
 
+  override def stopApp(): Unit =
+    dispatch(Event(None, None))
+
 
 object App:
 
@@ -289,6 +295,13 @@ object App:
             game.pads(app)
           }
         yield ()
+
+      def usage: IO[Unit] = IO {
+        println("Use TAB to switch colors, - and + to drag'n'drop, / for pad.")
+        println("Use arrows ←, →, ↑, ↓ to move left, right, up, down.")
+        println("Use # to toggle grid, @ to restart game, | to pause.")
+        println("Use keys BACKSPACE and ENTER to undo or redo.")
+      }
 
       def loop(idleTimeR: Ref[IO, Long],
                startedR: Ref[IO, Long],
@@ -359,7 +372,10 @@ object App:
 
             _ <- startedR.update(_ + elapsed)
 
-            _ <-  ( if drag.nonEmpty
+            _ <-  ( if key.isEmpty && drag.isEmpty
+                    then
+                      exitR.set(true) >> usage
+                    else if drag.nonEmpty
                     then
                        IO {
                         val (move, (drop, (i, to))) = drag.get
@@ -465,12 +481,7 @@ object App:
 
                       if keyCode eq KeyCode.ESCAPE
                       then
-                        exitR.set(true) >> IO {
-                          println("Use TAB to switch colors, - and + to drag'n'drop, / for pad.")
-                          println("Use arrows ←, →, ↑, ↓ to move left, right, up, down.")
-                          println("Use # to toggle grid, @ to restart game, | to pause.")
-                          println("Use keys BACKSPACE and ENTER to undo or redo.")
-                        }
+                        exitR.set(true) >> usage
                       else if paused
                       then
                         idleTimeR.update(_ + elapsed) >>
@@ -678,7 +689,7 @@ object App:
       else
         app.board.draw(block)
 
-    def apply(app: App, paused: Boolean, idleTime: Long): Unit =
+    def apply(app: App, paused: Boolean, idleTime: Long): Unit = runLater {
       val pending = app.pending.getChildren()
       for
         i <- 0 until game.state.size
@@ -741,3 +752,5 @@ object App:
           val mm = (((elapsed / 1000) % 86400) % 3600) / 60
           val ss = ((((elapsed / 1000) % 86400) % 3600) % 60) / 1
           prompt(2).text = s"• ELAPSED:${if dd > 0 then s" $dd day${if dd > 1 then "s" else ""}" else ""} $hh:$mm:$ss.$ms"
+
+    }

@@ -15,6 +15,7 @@ import fs2.io.file.{ Files, Path }
 import com.googlecode.lanterna.terminal.Terminal
 import com.googlecode.lanterna.input.KeyType
 
+import scalafx.application.Platform.runLater
 import scalafx.scene.Scene
 import scalafx.scene.canvas.Canvas
 import javafx.scene.input.{ KeyCode, KeyEvent, MouseEvent }
@@ -102,19 +103,20 @@ class App(dispatcher: Dispatcher[IO],
       children = Text("• PENDING") :: (0 until game.state.size)
         .foldLeft(List[Canvas]()) { (ls, i) =>
           val color = -(i/2)-1
-          val start = new Canvas:
+          ls :+ new Canvas:
             width = 2*dim.grid + dim.start
             height = 2*dim.grid + dim.start
+
             visible = false
-          val gc = start.getGraphicsContext2D()
-          gc.setFill(colors(color))
-          gc.setStroke(colors(color))
-          gc.fillOval(dim.grid, dim.grid, dim.start, dim.start)
-          gc.setFill(White)
-          val letter = ('A' + -1-color).toChar
-          gc.fillText(String.valueOf(letter), dim.grid + dim.start / 4, dim.grid + 3 * dim.start / 4)
-          start :: ls
-        }.reverse
+
+            val gc = this.getGraphicsContext2D()
+            gc.setFill(colors(color))
+            gc.setStroke(colors(color))
+            gc.fillOval(dim.grid, dim.grid, dim.start, dim.start)
+            gc.setFill(White)
+            val letter = ('A' + -1-color).toChar
+            gc.fillText(String.valueOf(letter), dim.grid + dim.start / 4, dim.grid + 3 * dim.start / 4)
+        }
 
   val current = new Canvas:
       width = 2*dim.grid + dim.start
@@ -145,6 +147,9 @@ class App(dispatcher: Dispatcher[IO],
     prompt(3).visible = false
     game(App.this, false, 0L)
 
+  override def stopApp(): Unit =
+    dispatch(Event(None, None))
+
 
 object App:
 
@@ -171,6 +176,13 @@ object App:
               loopR: Ref[IO, Deferred[IO, Unit]]): IO[Unit] =
 
       val board = app.board
+
+      def usage: IO[Unit] = IO {
+        println("Use letters A-N to select a color, and TAB to toggle the pair.")
+        println("Use arrows ←, →, ↑, ↓ to move left, right, up, down.")
+        println("Use # to toggle axes, @ to restart game, | to pause.")
+        println("Use keys BACKSPACE and ENTER to undo or redo.")
+      }
 
       def loop(idleTimeR: Ref[IO, Long],
                startedR: Ref[IO, Long],
@@ -241,7 +253,10 @@ object App:
 
             _ <- startedR.update(_ + elapsed)
 
-            _ <-  ( if drag.nonEmpty
+            _ <-  ( if key.isEmpty && drag.isEmpty
+                    then
+                      exitR.set(true) >> usage
+                    else if drag.nonEmpty
                     then
                        IO {
                         val (undo, (i, diff)) = drag.get
@@ -268,12 +283,7 @@ object App:
                       }
                     else if key.get.getCode() eq KeyCode.ESCAPE
                     then
-                      exitR.set(true) >> IO {
-                        println("Use letters A-N to select a color, and TAB to toggle the pair.")
-                        println("Use arrows ←, →, ↑, ↓ to move left, right, up, down.")
-                        println("Use # to toggle axes, @ to restart game, | to pause.")
-                        println("Use keys BACKSPACE and ENTER to undo or redo.")
-                      }
+                      exitR.set(true) >> usage
                     else if paused
                     then
                       idleTimeR.update(_ + elapsed) >>
@@ -463,7 +473,8 @@ object App:
           val to = play(play.size-3)
           app.board.draw(to, from, color, play.size == 3, false, false) // previous
 
-    def apply(app: App, paused: Boolean, idleTime: Long): Unit =
+    def apply(app: App, paused: Boolean, idleTime: Long): Unit = runLater {
+
       val pending = app.pending.getChildren()
       for
         i <- 0 until game.state.size
@@ -526,3 +537,5 @@ object App:
           val mm = (((elapsed / 1000) % 86400) % 3600) / 60
           val ss = ((((elapsed / 1000) % 86400) % 3600) % 60) / 1
           prompt(2).text = s"• ELAPSED:${if dd > 0 then s" $dd day${if dd > 1 then "s" else ""}" else ""} $hh:$mm:$ss.$ms"
+
+    }
