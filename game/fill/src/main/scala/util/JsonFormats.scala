@@ -23,6 +23,8 @@ object JsonFormats:
     implicit lazy val CellFormat: JsonFormat[Cell] =
       jsonFormat(Cell.apply, "colors", "clue")
 
+  object CellJsonProtocol extends CellJsonProtocol
+
 ////////////////////////////////////////////////////////////////////////////////
 
   trait ClueJsonProtocol extends GreenLeafJsonProtocol:
@@ -49,8 +51,6 @@ object JsonFormats:
   object ClueJsonProtocol extends ClueJsonProtocol
 
 ////////////////////////////////////////////////////////////////////////////////
-
-  object CellJsonProtocol extends CellJsonProtocol
 
   trait BlockJsonProtocol extends GreenLeafJsonProtocol:
     private val apply = Block.apply(_, _, _, _, _, _, _, _, _*)
@@ -79,7 +79,7 @@ object JsonFormats:
 
   object DoubtJsonProtocol extends DoubtJsonProtocol
 
-  ////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
   trait DataJsonProtocol extends GreenLeafJsonProtocol:
     import spray.json.{ JsObject, JsValue }
@@ -102,6 +102,8 @@ object JsonFormats:
           case _ => ???
 
   object DataJsonProtocol extends DataJsonProtocol
+
+////////////////////////////////////////////////////////////////////////////////
 
   trait BacktrackJsonProtocol extends GreenLeafJsonProtocol:
     import MoveJsonProtocol._
@@ -180,7 +182,7 @@ object JsonFormats:
 
     implicit lazy val PathFormat: JsonFormat[Path] =
       lazyFormat(jsonFormat(Path.apply,
-                            "dual", "id",
+                            "dual", "number",
                             "depth", "nesting",
                             "replica", "parent",
                             "undo", "redo",
@@ -244,7 +246,7 @@ object JsonFormats:
     import CellJsonProtocol._
     import ClueJsonProtocol._
 
-    implicit lazy val BoardFormat: RootJsonFormat[Board] = jsonFormat4(Board.apply)
+    implicit lazy val BoardFormat: JsonFormat[Board] = jsonFormat4(Board.apply)
 
   object BoardJsonProtocol extends BoardJsonProtocol
 

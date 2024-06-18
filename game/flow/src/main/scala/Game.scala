@@ -52,8 +52,6 @@ case class Game(
 
   urru.grid.Game.duals.put(id, this)
 
-  restart
-
 ////////////////////////////////////////////////////////////////////////////////
 
   def this(id: Id, size: Point, clues: Set[Clue], feats: Feature*)
@@ -520,4 +518,6 @@ object Game:
     val grid = this(start)
     val open = this(size, clues, Spiral(size, 0))
     val empty = (grid.keySet -- open).map(Empty(_))
-    new Game(id, size, clues ++ empty, feats*)(grid, start*)
+    val game = new Game(id, size, clues ++ empty, feats*)(grid, start*)
+    game.restart
+    game

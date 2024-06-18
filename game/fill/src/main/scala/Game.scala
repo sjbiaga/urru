@@ -52,8 +52,6 @@ case class Game(
 
   urru.grid.Game.duals.put(id, this)
 
-  restart
-
 ////////////////////////////////////////////////////////////////////////////////
 
   def this(id: Id, size: Point, clues: Set[Clue], feats: Feature*)
@@ -534,4 +532,6 @@ object Game:
   def apply(number: Long, size: Point, clues: Set[Clue], feats: Feature*): Game =
     val id = Id(number)
     val blocks = this(clues)
-    new Game(id, size, clues, feats*)(blocks*)
+    val game = new Game(id, size, clues, feats*)(blocks*)
+    game.restart
+    game

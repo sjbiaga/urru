@@ -242,7 +242,7 @@ object JsonFormats:
 
     implicit lazy val PathFormat: JsonFormat[Path] =
       lazyFormat(jsonFormat(Path.apply,
-                            "dual", "id",
+                            "dual", "number",
                             "depth", "nesting",
                             "replica", "parent",
                             "undo", "redo",

@@ -171,15 +171,15 @@ object JsonFormats:
 
   trait PathJsonProtocol extends GreenLeafJsonProtocol:
     import common.Implicits.MutableJsonProtocol._
+    import urru.grid.Implicits.IdJsonProtocol._
     import UndoJsonProtocol._
     import RedoJsonProtocol._
     import JustJsonProtocol._
     import HaveJsonProtocol._
-    import urru.grid.Implicits.IdJsonProtocol._
 
     implicit lazy val PathFormat: JsonFormat[Path] =
       lazyFormat(jsonFormat(Path.apply,
-                            "dual", "id",
+                            "dual", "number",
                             "depth", "nesting",
                             "replica", "parent",
                             "undo", "redo",

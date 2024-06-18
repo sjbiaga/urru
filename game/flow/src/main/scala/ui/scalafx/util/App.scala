@@ -359,7 +359,7 @@ object App:
                           import org.mongodb.scala._
                           val mongoClient = MongoClient("mongodb://127.0.0.1:27017")
                           val database = mongoClient.getDatabase("urru")
-                          val collection: MongoCollection[Document] = database.getCollection("flow")
+                          val collection = database.getCollection("flow")
                           var json = game.toJson
                           var jsonObj = json.asJsObject
                           val jsonId = JsString(ObjectId().toString)
