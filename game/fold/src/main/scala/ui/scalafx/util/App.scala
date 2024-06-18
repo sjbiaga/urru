@@ -316,9 +316,24 @@ object App:
                       for
                         cwd <- Files[IO].currentWorkingDirectory
                         s = Stream.emit[IO, String] {
+                          import scala.concurrent.Await
+                          import scala.concurrent.duration._
                           import spray.json.enrichAny
+                          import spray.json.JsString
                           import fold.util.JsonFormats.GameJsonProtocol._
-                          game.toJson.prettyPrint
+                          import org.bson.types.ObjectId
+                          import org.mongodb.scala._
+                          val mongoClient = MongoClient("mongodb://127.0.0.1:27017")
+                          val database = mongoClient.getDatabase("urru")
+                          val collection: MongoCollection[Document] = database.getCollection("fold")
+                          var json = game.toJson
+                          var jsonObj = json.asJsObject
+                          val jsonId = JsString(ObjectId().toString)
+                          jsonObj = jsonObj.copy(fields = jsonObj.fields.updated("_id", jsonId))
+                          json = jsonObj.toJson
+                          val observable = collection.insertOne(Document(json.toString))
+                          Await.result(observable.toFuture(), 10.seconds)
+                          json.prettyPrint
                         }
                         name = Pisc.uuid(app.name)
                         _ <- s.through(Files[IO].writeUtf8Lines(cwd / (name + ".json"))).compile.drain
@@ -326,9 +341,7 @@ object App:
 
                     else if key.get.getCode() eq KeyCode.PERIOD // PiScala
                     then
-                      for
-                        _ <- Pisc(app.name, game)
-                      yield ()
+                      Pisc(app.name, game)
 
                     else if key.get.getCode() eq KeyCode.DIGIT7
                     then

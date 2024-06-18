@@ -1,4 +1,4 @@
-ThisBuild / scalaVersion := "3.4.2-RC1"
+ThisBuild / scalaVersion := "3.5.0-RC1"
 
 Global / resolvers += "scala-integration" at "https://scala-ci.typesafe.com/artifactory/scala-integration/"
 
@@ -16,9 +16,9 @@ lazy val root = (project in file("."))
     organizationName := "sjbiaga",
     version := "1.0",
     maxErrors := 5,
-    scalaVersion := "3.4.2-RC1",
+    scalaVersion := "3.5.0-RC1",
     javacOptions ++= Seq("-source", "16"),
-    crossScalaVersions ++= Seq("2.13.13", "3.4.2-RC1"),
+    crossScalaVersions ++= Seq("2.13.14", "3.5.0-RC1"),
     scalacOptions ++= scala3Opts, // :+ "-Xprint:typer",
   )
 
@@ -29,9 +29,9 @@ lazy val base = (project in file("base"))
     organizationName := "sjbiaga",
     version := "1.0",
     maxErrors := 5,
-    scalaVersion := "3.4.2-RC1",
+    scalaVersion := "3.5.0-RC1",
     javacOptions ++= Seq("-source", "16"),
-    crossScalaVersions ++= Seq("2.13.13", "3.4.2-RC1"),
+    crossScalaVersions ++= Seq("2.13.14", "3.5.0-RC1"),
     scalacOptions ++= scala3Opts, // :+ "-Xprint:typer",
   )
 
@@ -43,9 +43,9 @@ lazy val grid = (project in file("grid"))
     organizationName := "sjbiaga",
     version := "1.0",
     maxErrors := 5,
-    scalaVersion := "3.4.2-RC1",
+    scalaVersion := "3.5.0-RC1",
     javacOptions ++= Seq("-source", "16"),
-    crossScalaVersions ++= Seq("2.13.13", "3.4.2-RC1"),
+    crossScalaVersions ++= Seq("2.13.14", "3.5.0-RC1"),
     scalacOptions ++= scala3Opts, // :+ "-Xprint:typer",
   )
 
@@ -57,9 +57,9 @@ lazy val game = (project in file("game"))
     organizationName := "sjbiaga",
     version := "1.0",
     maxErrors := 5,
-    scalaVersion := "3.4.2-RC1",
+    scalaVersion := "3.5.0-RC1",
     javacOptions ++= Seq("-source", "16"),
-    crossScalaVersions ++= Seq("2.13.13", "3.4.2-RC1"),
+    crossScalaVersions ++= Seq("2.13.14", "3.5.0-RC1"),
     scalacOptions ++= scala3Opts, // :+ "-Xprint:typer",
   )
 
@@ -72,9 +72,9 @@ lazy val `game-flow` = (project in file("game/flow"))
     organizationName := "sjbiaga",
     version := "1.0",
     maxErrors := 5,
-    scalaVersion := "3.4.2-RC1",
+    scalaVersion := "3.5.0-RC1",
     javacOptions ++= Seq("-source", "16"),
-    crossScalaVersions ++= Seq("2.13.13", "3.4.2-RC1"),
+    crossScalaVersions ++= Seq("2.13.14", "3.5.0-RC1"),
     scalacOptions ++= scala3Opts, // :+ "-Xprint:typer",
   )
 
@@ -87,9 +87,9 @@ lazy val `game-fold` = (project in file("game/fold"))
     organizationName := "sjbiaga",
     version := "1.0",
     maxErrors := 5,
-    scalaVersion := "3.4.2-RC1",
+    scalaVersion := "3.5.0-RC1",
     javacOptions ++= Seq("-source", "16"),
-    crossScalaVersions ++= Seq("2.13.13", "3.4.2-RC1"),
+    crossScalaVersions ++= Seq("2.13.14", "3.5.0-RC1"),
     scalacOptions ++= scala3Opts, // :+ "-Xprint:typer",
   )
 
@@ -102,9 +102,9 @@ lazy val `game-fill` = (project in file("game/fill"))
     organizationName := "sjbiaga",
     version := "1.0",
     maxErrors := 5,
-    scalaVersion := "3.4.2-RC1",
+    scalaVersion := "3.5.0-RC1",
     javacOptions ++= Seq("-source", "16"),
-    crossScalaVersions ++= Seq("2.13.13", "3.4.2-RC1"),
+    crossScalaVersions ++= Seq("2.13.14", "3.5.0-RC1"),
     scalacOptions ++= scala3Opts, // :+ "-Xprint:typer",
   )
 
