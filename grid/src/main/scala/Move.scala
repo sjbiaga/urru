@@ -2,7 +2,7 @@ package urru
 
 import scala.collection.{ Map => AnyMap }
 
-import grid.Game._
+import grid.Game.*
 import grid.shape
 
 

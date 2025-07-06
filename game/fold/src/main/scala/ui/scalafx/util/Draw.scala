@@ -8,7 +8,7 @@ import scalafx.application.Platform.runLater
 import scalafx.scene.canvas.Canvas
 import scalafx.scene.paint.Color
 import scalafx.scene.shape.ArcType
-import Color._
+import Color.*
 import javafx.scene.canvas.GraphicsContext
 
 
@@ -36,7 +36,7 @@ object Draw:
 
   import urru.common.grid.{ row, x, col, + }
 
-  import Clue._
+  import Clue.*
 
   // board /////////////////////////////////////////////////////////////////////
 

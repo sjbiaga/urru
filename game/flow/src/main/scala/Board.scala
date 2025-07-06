@@ -27,3 +27,19 @@ object Have:
       then
         grid(by) = HashSet()
       grid(by) += it(clues)(const(true))(by)
+
+
+  object http4s:
+
+    import cats.effect.IO
+
+    import io.circe.generic.auto.*
+
+    import org.http4s.circe.{ jsonEncoder, jsonOf }
+    import org.http4s.EntityDecoder
+
+    import common.grid.http4s.given
+    import Clue.http4s.given
+    import Cell.http4s.given
+
+    given EntityDecoder[IO, Board] = jsonOf

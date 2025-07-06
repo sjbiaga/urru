@@ -2,8 +2,7 @@ package urru
 
 import scala.annotation.tailrec
 import scala.collection.mutable.{ HashMap, HashSet }
-import scala.collection.mutable.{ ListBuffer => MutableList, StringBuilder }
-import scala.util.control.NonLocalReturns.{ returning, throwReturn => thr }
+import scala.collection.mutable.{ ListBuffer => MutableList }
 import scala.util.control.TailCalls.{ done, tailcall, TailRec }
 
 import cats.effect.IO
@@ -15,22 +14,22 @@ import common.Mutable.given
 
 import grid.shape
 
-import grid.Game._
-import UndoRedo._
+import grid.Game.*
+import UndoRedo.*
 
 import grid.Grid.Id
-import grid.Tense._
+import grid.Tense.*
 import grid.tense.intensional.Grid
 
 
 abstract trait Path[
-  B <: Path[B, C, D, K, M, R, U],
+  B <: Path[B, C, D, K, M, U, R],
   C <: Cell,
   D,
   K <: Clue,
   M <: Move[C, K],
-  R <: Redo[B, C, D, K, M, R, U],
-  U <: Undo[B, C, D, K, M, U]
+  U <: Undo[B, C, D, K, M, U, R],
+  R <: Redo[B, C, D, K, M, U, R]
 ]:
 
   val dual: Id
@@ -49,10 +48,7 @@ abstract trait Path[
   val just: MutableList[Just[D, K, C, M]]
   val have: HashMap[Int, HashSet[Have[K, C, M]]]
 
-  protected val pisc: MutableList[StringBuilder]
-
-  inline final def feat(feature: Feature) =
-    duals.get(dual).features.contains(feature)
+  given Conversion[Feature, Boolean] = duals.get(dual).features.contains(_)
 
   protected def apply(): B // fresh
 
@@ -89,8 +85,8 @@ abstract trait Path[
 
 // Past Simple ///////////////////////////////////////////////////////// time //
 
-      def travel(color: Int): Stream[IO, (Int, Seq[(D, Boolean, Int, Int, Int)])] =
-        var path: Option[(Int, Seq[(D, Boolean, Int, Int, Int)])] = None
+      def travel(color: Int): Stream[IO, (Int, Seq[(D, U Either R, Int, Int, Int)])] =
+        var path: Option[(Int, Seq[(D, U Either R, Int, Int, Int)])] = None
 
         var call = tailcall { travel(color, { (_, it) => path = Some(color -> it); true }) }
 
@@ -116,7 +112,7 @@ abstract trait Path[
         .map(_._1.get)
 
       private def travel(color: Int,
-                         block: ((Int, Seq[(D, Boolean, Int, Int, Int)])) => Boolean
+                         block: ((Int, Seq[(D, U Either R, Int, Int, Int)])) => Boolean
       ): TailRec[Boolean] =
         for
           r0 <- done(block(color -> Nil))
@@ -132,8 +128,8 @@ abstract trait Path[
 
       private def travel(color: Int,
                          i: Int,
-                         block: ((Int, Seq[(D, Boolean, Int, Int, Int)])) => Boolean,
-                         path: Seq[(D, Boolean, Int, Int, Int)]
+                         block: ((Int, Seq[(D, U Either R, Int, Int, Int)])) => Boolean,
+                         path: Seq[(D, U Either R, Int, Int, Int)]
       ): TailRec[Boolean] =
         if i == just.size
         then
@@ -165,66 +161,64 @@ abstract trait Path[
           } do
             j -= 1
           val urru =
-            just(j + 1) match
-              case it: U => true
-              case it: R => false
+            just(i) match
+              case it: U => Left(it)
+              case it: R => Right(it)
           val node = (intensity, urru, depth, nesting, i-j)
           val path1 = node +: path
-          if !block(color -> path1)
-          then
-            done(false)
-          else
-            for
-              r1 <- tailcall {
-                val it: B = just(i).asInstanceOf[UndoRedo[B, C, D, K, M, ?]].path
-                it.tense.Just.travel(color, 0, block, path1)
-              }
-              r <- tailcall {
-                if !r1
+          done(!block(color -> path1)).flatMap {
+            if _
+            then
+              done(false)
+            else
+              val it: B = just(i).asInstanceOf[UndoRedo[B, C, D, K, M, U, R, ?]].path
+              tailcall { it.tense.Just.travel(color, 0, block, path1) }.flatMap {
+                if _
                 then
-                  done(r1)
+                  tailcall { travel(color, i + 1, block, path) }
                 else
-                  travel(color, i + 1, block, path)
+                  done(false)
               }
-            yield
-              r
+          }
 
 // Past Simple /////////////////////////////////////////////////////// repeal //
 
       def repeal(id: Long): TailRec[Unit] =
-        just
-          .filterInPlace { case it: UndoRedo[B, C, D, K, M, ?] =>
-            !(it.identifier === id)
-          }
-
         for
+          _ <- done { just
+                       .filterInPlace { case it: UndoRedo[B, C, D, K, M, U, R, ?] =>
+                         it.identifier != id
+                       }
+                    }
           _ <- repeal(0, id)
           _ <- parent.map(_.tense.Just.repeal(id)).getOrElse(done(()))
         yield
           ()
 
       def repeal(i: Int, id: Long): TailRec[Unit] =
-        if i == just.size
-        then
-          done(())
-        else
-          val it = just(i).asInstanceOf[UndoRedo[B, C, D, K, M, ?]]
-          for
-            _ <- tailcall { it.path.tense.Just.repeal(id) }
-            _ <- tailcall { repeal(i + 1, id) }
-          yield
-            ()
+        done(i == just.size).flatMap {
+          if _
+          then
+            done(())
+          else
+            for
+              _ <- tailcall { repeal(i + 1, id) }
+              it = just(i).asInstanceOf[UndoRedo[B, C, D, K, M, U, R, ?]]
+              _ <- tailcall { it.path.tense.Just.repeal(id) }
+            yield
+              ()
+        }
 
 // move ////////////////////////////////////////////////////////////////////////
 
   def apply(it: M): D => B = { in =>
-    if feat(Feature.Have)
+    if Feature.Just
     then
       tense.Just(_.move(it)(in))
 
     if !replica
     then
-      if feat(Feature.Have)
+      if Feature.Have
       then
         tense.Have(it)
 
@@ -246,7 +240,7 @@ abstract trait Path[
 
   object ur:
 
-    private object move:
+    object move:
 
       object Undo:
 
@@ -283,7 +277,7 @@ abstract trait Path[
       var i = 0
       while i < just.size
       do
-        val it = just(i).asInstanceOf[UndoRedo[B, C, D, K, M, ?]]
+        val it = just(i).asInstanceOf[UndoRedo[B, C, D, K, M, U, R, ?]]
         parent.get.tense.Just.repeal(it.identifier).result
         val n =
           just(i) match
@@ -297,11 +291,9 @@ abstract trait Path[
         } do
           i += 1
 
-    import PiScala.apply
-
     object Undo:
 
-      def apply(id: Option[Long]): B =
+      def apply(p: Option[(Long, Long)]): B =
         require(parent.nonEmpty)
         require(undo.nonEmpty)
         assert(undo.get.path.parent.isEmpty)
@@ -309,129 +301,52 @@ abstract trait Path[
         val it = undo.get
         val self = parent.get
 
-        if id.nonEmpty
-        then
-          if feat(Feature.Just)
-          then
-            self.tense.Just(_.undo(id.get))
+        p match
 
-            self.just += it(undo.replay().ur.Undo(None), id.get)
+          case Some((elapsed, id)) =>
+            it.elapsed ::= elapsed
 
-          else if feat(Feature.Pisc)
-          then
-            self.just += it
-
-          if !replica
-          then
-            if feat(Feature.Pisc)
+            if Feature.Just
             then
-              if depth > 1
-              then
-                self(it, self.just.size >= 2 && self.just(self.just.size - 2).isInstanceOf[R]) // PiScala
+              self.tense.Just(_.undo(elapsed -> id))
 
-            repeal
+              self.just += it(undo.replay().ur.Undo(None), id)
 
-            if feat(Feature.Have)
+            if !replica
             then
-              if !self.have.contains(depth)
+              repeal
+
+              if Feature.Have
               then
-                self.have(depth) = HashSet.empty
-              self.have(depth) += Path.this(it.grid, it.clues)
+                if !self.have.contains(depth)
+                then
+                  self.have(depth) = HashSet.empty
+                self.have(depth) += Path.this(it.grid, it.clues)
+
+          case _ =>
 
         Path.this(self, it.next, Some(Path.this(it, redo)))
 
     object Redo:
 
-      def apply(id: Option[Long]): B =
+      def apply(p: Option[(Long, Long)]): B =
         require(redo.nonEmpty)
         assert(redo.get.path.parent.isEmpty)
 
         val it = redo.get
         val self = Path.this.asInstanceOf[B]
 
-        if id.nonEmpty
-        then
-          if feat(Feature.Just)
-          then
-            tense.Just(_.redo(id.get))
+        p match
 
-            just += it(undo.replay().ur.Redo(None), id.get)
+          case Some((elapsed, id)) =>
+            it.elapsed ::= elapsed
 
-          else if feat(Feature.Pisc)
-          then
-            just += it
+            if Feature.Just
+            then
+              tense.Just(_.redo(elapsed -> id))
+
+              just += it(undo.replay().ur.Redo(None), id)
+
+          case _ =>
 
         Path.this(Path.this(it), Some(it.undo), it.next)
-
-  /**
-    * @see [[https://github.com/sjbiaga/pisc]]
-    */
-  object PiScala:
-
-    import Pisc._
-
-    def apply(): (String, String) =
-      var self = Path.this.asInstanceOf[B]
-      var temp = self.pisc.map(_.result()).map(StringBuilder(_))
-      while self.depth > 1
-      do
-        val p = self.parent.get
-        val pisc = p.pisc.map(_.result()).map(StringBuilder(_))
-        self(temp, pisc, p.just.nonEmpty && p.just.last.isInstanceOf[R])
-        temp = pisc
-        self = p
-      if temp.head.isEmpty
-      then
-        temp.head.append("𝟎")
-      temp.head.result() -> temp.tail.map(_.result()).mkString("\n")
-
-    extension(self: B)
-      private[Path] def apply(temp: MutableList[StringBuilder],
-                              pisc: MutableList[StringBuilder],
-                              redo: Boolean): Unit =
-        val it = self.undo.get.move
-        val dnd = feat(Feature.DnD)
-        val id = uuid(if !it.dir then "DnD" else "Move") + s"(${args(dnd)})"
-        val dir = dirs(it)
-        var arg = s"${self.depth-1}"
-        if it.isInstanceOf[shape.By]
-        then
-          arg = s"/*$arg -> ${it.asInstanceOf[shape.By].by}*/"
-        if pisc(0).nonEmpty
-        then
-          pisc(0).append(" + ")
-        if redo
-        then
-          pisc(0).append(s"redo<$dir> . ")
-        pisc(0).append(s"$dir<$arg> . $id")
-        if temp.head.isEmpty
-        then
-          temp.head.append("𝟎")
-        pisc += StringBuilder(s"$id = ${temp.head}")
-        pisc ++= temp.tail
-
-      private[Path] def apply(it: U, redo: Boolean): Unit =
-        val dnd = feat(Feature.DnD)
-        val id = uuid("Urru") + s"(${args(dnd)})"
-        val dir = dirs(it.move)
-        var arg = s"${depth-1}"
-        if it.move.isInstanceOf[shape.By]
-        then
-          arg = s"/*$arg -> ${it.move.asInstanceOf[shape.By].by}*/"
-        if redo
-        then
-          if self.pisc(0).nonEmpty
-          then
-            self.pisc(0).append(" + ")
-          self.pisc(0).append(s"redo<$dir> . $dir<$arg> . $id")
-        if self.pisc(0).nonEmpty
-        then
-          self.pisc(0).append(" + ")
-        self.pisc(0).append(s"undo<$dir> . $dir<$arg> . $id")
-        if pisc.head.isEmpty
-        then
-          pisc.head.append("𝟎")
-        self.pisc += StringBuilder(s"$id = ${pisc.head}")
-        self.pisc ++= pisc.tail
-
-////////////////////////////////////////////////////////////////////////////////

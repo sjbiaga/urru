@@ -14,15 +14,15 @@ package tense:
 
   import common.grid.{ adj, row, x, col }
 
-  import grid.Game.Data._
+  import grid.Game.Data.*
   import grid.shape
 
-  import Clue._
+  import Clue.*
 
   package extensional:
 
     sealed abstract trait Data[K <: Clue, F[_]]
-        extends urru.grid.Game.Data, Upon[K, F]:
+        extends grid.Game.Data, Upon[K, F]:
 
       val colors: Seq[Int]
 
@@ -175,3 +175,67 @@ package tense:
 
         override def apply(grid: Map[Point, Cell], over: Boolean*): Boolean =
           grid.contains(at) && grid(at).colors.contains(pair)
+
+
+object Data:
+
+  object http4s:
+
+    import cats.effect.IO
+
+    import io.circe.{ Decoder, Encoder }
+    import io.circe.generic.auto.*
+    import io.circe.generic.{ semiauto => sa }
+
+    import org.http4s.circe.{ jsonEncoderOf, jsonOf }
+    import org.http4s.{ EntityDecoder, EntityEncoder }
+
+    import tense.extensional.Data.*
+    import tense.intensional.Data.*
+
+    import common.grid.http4s.given
+    import grid.Grid.http4s.given
+    import Clue.http4s.given
+    import Cell.http4s.given
+
+    given EntityDecoder[IO, Overlapping] = jsonOf
+    given EntityDecoder[IO, DoubleCross] = jsonOf
+    given EntityDecoder[IO, Trespassing] = jsonOf
+    given EntityDecoder[IO, IntoThePit] = jsonOf
+    given EntityDecoder[IO, OffCourse] = jsonOf
+    given EntityDecoder[IO, Collision] = jsonOf
+
+    given Decoder[Fact] = sa.deriveDecoder
+    given EntityDecoder[IO, Fact] = jsonOf
+
+    given EntityDecoder[IO, Backtrack] = jsonOf
+    given EntityDecoder[IO, HalfCross] = jsonOf
+    given EntityDecoder[IO, FullCross] = jsonOf
+    given EntityDecoder[IO, Backlash] = jsonOf
+    given EntityDecoder[IO, Pullout] = jsonOf
+
+    given Decoder[Doubt] = sa.deriveDecoder
+    given EntityDecoder[IO, Doubt] = jsonOf
+
+    given EntityDecoder[IO, Data] = jsonOf
+
+    given EntityEncoder[IO, Overlapping] = jsonEncoderOf
+    given EntityEncoder[IO, DoubleCross] = jsonEncoderOf
+    given EntityEncoder[IO, Trespassing] = jsonEncoderOf
+    given EntityEncoder[IO, IntoThePit] = jsonEncoderOf
+    given EntityEncoder[IO, OffCourse] = jsonEncoderOf
+    given EntityEncoder[IO, Collision] = jsonEncoderOf
+
+    given Encoder[Fact] = sa.deriveEncoder
+    given EntityEncoder[IO, Fact] = jsonEncoderOf
+
+    given EntityEncoder[IO, Backtrack] = jsonEncoderOf
+    given EntityEncoder[IO, HalfCross] = jsonEncoderOf
+    given EntityEncoder[IO, FullCross] = jsonEncoderOf
+    given EntityEncoder[IO, Backlash] = jsonEncoderOf
+    given EntityEncoder[IO, Pullout] = jsonEncoderOf
+
+    given Encoder[Doubt] = sa.deriveEncoder
+    given EntityEncoder[IO, Doubt] = jsonEncoderOf
+
+    given EntityEncoder[IO, Data] = jsonEncoderOf

@@ -14,7 +14,7 @@ import common.pairwise
 import common.Mutable
 import Mutable.given
 
-import Clue._
+import Clue.*
 
 
 object Read:

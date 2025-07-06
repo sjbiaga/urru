@@ -8,17 +8,17 @@ import spray.json.{ JsonFormat, RootJsonFormat }
 
 import common.Mutable
 
-import Clue._
-import UndoRedo._
+import Clue.*
+import UndoRedo.*
 
-import tense.intensional.Data._
+import tense.intensional.Data.*
 
 
 object JsonFormats:
 
   trait CellJsonProtocol extends GreenLeafJsonProtocol:
-    import common.Implicits.MutableJsonProtocol._
-    import ClueJsonProtocol._
+    import common.Implicits.MutableJsonProtocol.*
+    import ClueJsonProtocol.*
 
     implicit lazy val CellFormat: JsonFormat[Cell] =
       jsonFormat(Cell.apply, "colors", "clue")
@@ -29,9 +29,9 @@ object JsonFormats:
 
   trait ClueJsonProtocol extends GreenLeafJsonProtocol:
     import spray.json.{ JsObject, JsValue }
-    import BlockJsonProtocol._
-    import EmptyJsonProtocol._
-    import MultiJsonProtocol._
+    import BlockJsonProtocol.*
+    import EmptyJsonProtocol.*
+    import MultiJsonProtocol.*
 
     implicit def ClueFormat: JsonFormat[Clue] =
       new JsonFormat[Clue]:
@@ -72,7 +72,7 @@ object JsonFormats:
 ////////////////////////////////////////////////////////////////////////////////
 
   trait DoubtJsonProtocol extends GreenLeafJsonProtocol:
-    import DataJsonProtocol._
+    import DataJsonProtocol.*
 
     implicit lazy val DoubtFormat: JsonFormat[Doubt] = jsonFormat1(Doubt.apply)
 
@@ -82,8 +82,8 @@ object JsonFormats:
 
   trait DataJsonProtocol extends GreenLeafJsonProtocol:
     import spray.json.{ JsObject, JsValue }
-    import BacktrackJsonProtocol._
-    import BacklashJsonProtocol._
+    import BacktrackJsonProtocol.*
+    import BacklashJsonProtocol.*
 
     import tense.intensional.Data
 
@@ -105,15 +105,15 @@ object JsonFormats:
 ////////////////////////////////////////////////////////////////////////////////
 
   trait BacktrackJsonProtocol extends GreenLeafJsonProtocol:
-    import MoveJsonProtocol._
+    import MoveJsonProtocol.*
 
     implicit lazy val BacktrackFormat: JsonFormat[Backtrack] = jsonFormat(Backtrack.apply, "move")
 
   object BacktrackJsonProtocol extends BacktrackJsonProtocol
 
   trait BacklashJsonProtocol extends GreenLeafJsonProtocol:
-    import common.Implicits.MapJsonProtocol._
-    import MoveJsonProtocol._
+    import common.Implicits.MapJsonProtocol.*
+    import MoveJsonProtocol.*
 
     implicit lazy val BacklashFormat: JsonFormat[Backlash] = jsonFormat(Backlash.apply, "move", "pair")
 
@@ -123,10 +123,10 @@ object JsonFormats:
 
   trait FoldJsonProtocol extends GreenLeafJsonProtocol:
     import scala.collection.mutable.{ ListBuffer => MutableList }
-    import common.Implicits.MutableJsonProtocol._
-    import common.Mutable.MutableJsonProtocol._
-    import PathJsonProtocol._
-    import BlockJsonProtocol._
+    import common.Implicits.MutableJsonProtocol.*
+    import common.Mutable.MutableJsonProtocol.*
+    import PathJsonProtocol.*
+    import BlockJsonProtocol.*
 
     implicit lazy val FoldFormat: JsonFormat[Fold] =
       jsonFormat3[Play, Boolean, MutableList[game.fold.Path], Fold](grid.Item.apply)
@@ -136,32 +136,33 @@ object JsonFormats:
 ////////////////////////////////////////////////////////////////////////////////
 
   trait GameJsonProtocol extends GreenLeafJsonProtocol:
-    import common.Implicits.MapJsonProtocol._
-    import common.Implicits.MutableJsonProtocol._
-    import urru.grid.Implicits.IdJsonProtocol._
-    import urru.grid.Implicits.CountersJsonProtocol._
-    import urru.grid.Implicits.FeatureJsonProtocol._
-    import Mutable.MutableJsonProtocol._
-    import CellJsonProtocol._
-    import ClueJsonProtocol._
-    import FoldJsonProtocol._
+    import common.Implicits.MapJsonProtocol.*
+    import common.Implicits.MutableJsonProtocol.*
+    import urru.grid.Implicits.IdJsonProtocol.*
+    import urru.grid.Implicits.CountersJsonProtocol.*
+    import urru.grid.Implicits.FeatureJsonProtocol.*
+    import urru.grid.Implicits.SavepointJsonProtocol.*
+    import Mutable.MutableJsonProtocol.*
+    import CellJsonProtocol.*
+    import ClueJsonProtocol.*
+    import FoldJsonProtocol.*
 
     implicit lazy val GameFormat: RootJsonFormat[Game] =
       jsonFormat(Game.apply,
                  "id",
-                 "size", "grid", "clues",
-                 "state", "hints", "counters", "features",
+                 "size", "grid", "clues", "features",
+                 "state", "init", "hints", "counters", "savepoint",
                  "pending", "batch",
                  "nowColor",
                  "showAxes", "showJust", "gameOver",
-                 "startTime", "minusTime")
+                 "startTime")
 
   object GameJsonProtocol extends GameJsonProtocol
 
 ////////////////////////////////////////////////////////////////////////////////
 
   trait MoveJsonProtocol extends GreenLeafJsonProtocol:
-    import BlockJsonProtocol._
+    import BlockJsonProtocol.*
 
     implicit lazy val MoveFormat: JsonFormat[Move] = jsonFormat4(Move.apply)
 
@@ -170,12 +171,12 @@ object JsonFormats:
 ////////////////////////////////////////////////////////////////////////////////
 
   trait PathJsonProtocol extends GreenLeafJsonProtocol:
-    import common.Implicits.MutableJsonProtocol._
-    import urru.grid.Implicits.IdJsonProtocol._
-    import UndoJsonProtocol._
-    import RedoJsonProtocol._
-    import JustJsonProtocol._
-    import HaveJsonProtocol._
+    import common.Implicits.MutableJsonProtocol.*
+    import urru.grid.Implicits.IdJsonProtocol.*
+    import UndoJsonProtocol.*
+    import RedoJsonProtocol.*
+    import JustJsonProtocol.*
+    import HaveJsonProtocol.*
 
     implicit lazy val PathFormat: JsonFormat[Path] =
       lazyFormat(jsonFormat(Path.apply,
@@ -183,8 +184,7 @@ object JsonFormats:
                             "depth", "nesting",
                             "replica", "parent",
                             "undo", "redo",
-                            "just", "have",
-                            "pisc"))
+                            "just", "have"))
 
   object PathJsonProtocol extends PathJsonProtocol
 
@@ -195,7 +195,7 @@ object JsonFormats:
 
   trait HaveJsonProtocol extends GreenLeafJsonProtocol:
     import spray.json.{ JsObject, JsValue }
-    import BoardJsonProtocol._
+    import BoardJsonProtocol.*
 
     implicit def HaveFormat: RootJsonFormat[Have[Clue, Cell, Move]] =
       new RootJsonFormat[Have[Clue, Cell, Move]]:
@@ -217,8 +217,8 @@ object JsonFormats:
 
   trait JustJsonProtocol extends GreenLeafJsonProtocol:
     import spray.json.{ JsObject, JsValue }
-    import UndoJsonProtocol._
-    import RedoJsonProtocol._
+    import UndoJsonProtocol.*
+    import RedoJsonProtocol.*
 
     implicit def JustFormat: RootJsonFormat[Just[Doubt, Clue, Cell, Move]] =
       new RootJsonFormat[Just[Doubt, Clue, Cell, Move]]:
@@ -238,10 +238,10 @@ object JsonFormats:
 ////////////////////////////////////////////////////////////////////////////////
 
   trait BoardJsonProtocol extends GreenLeafJsonProtocol:
-    import common.Implicits.MutableJsonProtocol._
-    import urru.grid.Implicits.IdJsonProtocol._
-    import CellJsonProtocol._
-    import ClueJsonProtocol._
+    import common.Implicits.MutableJsonProtocol.*
+    import urru.grid.Implicits.IdJsonProtocol.*
+    import CellJsonProtocol.*
+    import ClueJsonProtocol.*
 
     implicit lazy val BoardFormat: JsonFormat[Board] = jsonFormat4(Board.apply)
 
@@ -250,11 +250,11 @@ object JsonFormats:
 ////////////////////////////////////////////////////////////////////////////////
 
   trait UndoJsonProtocol extends GreenLeafJsonProtocol:
-    import urru.grid.Implicits.IdJsonProtocol._
-    import MoveJsonProtocol._
-    import Mutable.MutableJsonProtocol._
-    import DoubtJsonProtocol._
-    import PathJsonProtocol._
+    import urru.grid.Implicits.IdJsonProtocol.*
+    import MoveJsonProtocol.*
+    import Mutable.MutableJsonProtocol.*
+    import DoubtJsonProtocol.*
+    import PathJsonProtocol.*
 
     implicit lazy val UndoFormat: RootJsonFormat[Undo] =
       rootFormat(lazyFormat(jsonFormat(Undo.apply,
@@ -267,16 +267,17 @@ object JsonFormats:
   object UndoJsonProtocol extends UndoJsonProtocol
 
   trait RedoJsonProtocol extends GreenLeafJsonProtocol:
-    import urru.grid.Implicits.IdJsonProtocol._
-    import UndoJsonProtocol._
-    import Mutable.MutableJsonProtocol._
-    import PathJsonProtocol._
+    import urru.grid.Implicits.IdJsonProtocol.*
+    import UndoJsonProtocol.*
+    import Mutable.MutableJsonProtocol.*
+    import PathJsonProtocol.*
 
     implicit lazy val RedoFormat: RootJsonFormat[Redo] =
       rootFormat(lazyFormat(jsonFormat(Redo.apply,
                                        "id",
                                        "undo",
                                        "next", "path",
-                                       "identifier")))
+                                       "identifier",
+                                       "elapsed")))
 
   object RedoJsonProtocol extends RedoJsonProtocol

@@ -12,14 +12,14 @@ import common.grid.{ row, x, col }
 import common.{ Mutable, :- }
 import Mutable.given
 
-import Clue._
-import UndoRedo._
+import Clue.*
+import UndoRedo.*
 
 import tense.intensional.Data.Doubt
 
 import urru.grid.Grid.Id
-import urru.grid.Game.{ Counters, Feature }
-import Game._
+import urru.grid.Game.{ Counters, Feature, Savepoint }
+import Game.*
 
 
 case class Game(
@@ -29,20 +29,18 @@ case class Game(
   override val clues: Set[Clue],
   override val features: Map[Feature, Boolean],
   override val state: MutableList[Fold],
+  override protected[fold] val init: (Set[Point], Map[Point, Cell], Seq[Fold]),
   override val hints: HashSet[Clue] = HashSet(),
   override val counters: Counters = Counters(0, 0, 0),
+  override val savepoint: Savepoint = Savepoint(),
   override val pending: MutableList[(Int, HashMap[Int, Int])] = MutableList(),
   override protected val batch: Mutable[Boolean] = Mutable(false),
   var nowColor: Int = 0,
   var showAxes: Boolean = true,
   var showJust: Option[Boolean] = None,
   var gameOver: Boolean = false,
-  var startTime: Long = -1,
-  var minusTime: Long = -1
-) extends urru.grid.Game[Play, Path, Cell, Doubt, Clue, Move, Fold]:
-
-  override protected[fold] val init: (Set[Point], Map[Point, Cell], Seq[Fold]) =
-    (Game(size, clues), grid.toMap, state.toSeq)
+  var startTime: Long = -1
+) extends urru.grid.Game[Play, Path, Cell, Doubt, Clue, Move, Undo, Redo, Fold]:
 
   val wildcards = clues
     .filter(_.isInstanceOf[Multi])
@@ -51,6 +49,15 @@ case class Game(
   urru.grid.Game.duals.put(id, this)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+  private def this(id: Id,
+                   size: Point,
+                   grid: HashMap[Point, Cell],
+                   clues: Set[Clue],
+                   features: Map[Feature, Boolean],
+                   state: MutableList[Fold]) =
+    this(id, size, grid, clues, features, state,
+         (Game(size, clues), grid.toMap, state.toSeq))
 
   def this(id: Id, size: Point, clues: Set[Clue], feats: Feature*)
           (grid: Map[Point, Cell], blocks: Block*) =
@@ -124,7 +131,7 @@ case class Game(
 ////////////////////////////////////////////////////////////////////////////////
 
   import tense.intensional.Data
-  import Data._
+  import Data.*
 
   private def apply(): Move => Doubt = {
     case _ if !features(Feature.Just) =>
@@ -184,20 +191,9 @@ case class Game(
           None
       }.exists {
         case (it, in) if this(it, this(it)) =>
-          if {
-            item.path(0).redo.exists { r =>
-              if r.move == it
-              && r.undo.intensity == in
-              then
-                minusTime -= r.move.elapsed
-                minusTime += r.undo.elapsed + elapsed
-                true
-              else
-                false
-            }
-          }
+          if item.path(0).redo.exists { r => r.move == it && r.undo.intensity == in }
           then
-            redo(i)
+            redo(elapsed -> i)
           else
             move(it)(in)
           this(-i-1)
@@ -212,9 +208,7 @@ case class Game(
 
   object Just:
 
-    import cats.effect.kernel.Concurrent
-
-    def travel(using Concurrent[IO]): Stream[IO, (Int, Seq[(Doubt, Boolean, Int, Int, Int)])] =
+    def travel: Stream[IO, (Int, Seq[(Doubt, Undo Either Redo, Int, Int, Int)])] =
       if !features(Feature.Just)
       then
         Stream.empty
@@ -228,18 +222,19 @@ case class Game(
                 Stream.emits(it.path.map(_.tense.Just.travel(color)))
               }
           }
-          .parJoinUnbounded
-          .parJoinUnbounded
+          .flatten
+          .flatten
 
 ////////////////////////////////////////////////////////////////////////////////
 
-  override def undo(i: Int) =
+  override def undo(p: (Long, Int)) =
+    val (elapsed, i) = p
     val item = state(i)
     val it = item.path(0).undo.get
 
     it.move(grid)(grid -= _)
 
-    item.path(0) = item.path(0).ur.Undo(!batch :- it.number)
+    item.path(0) = item.path(0).ur.Undo(!batch :- elapsed -> it.number)
     item.play = item.play.tail
 
     check
@@ -248,7 +243,7 @@ case class Game(
     val i = -nowColor-1
 
     state(i).path(0).undo.exists { it =>
-      undo(i)
+      undo(elapsed -> i)
 
       batch ::= pending.nonEmpty && pending(0)._1 == i
 
@@ -258,7 +253,7 @@ case class Game(
           for
             _ <- 1 to n
           do
-            redo(j)
+            redo(-1L -> j)
         }
 
         pending.remove(0)
@@ -266,9 +261,6 @@ case class Game(
         check
 
       else
-        minusTime += it.move.elapsed
-        it.elapsed = elapsed
-
         pending.clear
 
       batch ::= false
@@ -281,7 +273,8 @@ case class Game(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-  override def redo(i: Int) =
+  override def redo(p: (Long, Int)) =
+    val (elapsed, i) = p
     val item = state(i)
     val it = item.path(0).redo.get
 
@@ -289,7 +282,7 @@ case class Game(
 
     val block = item.play.head(it.move.block, it.move.dir)
 
-    item.path(0) = item.path(0).ur.Redo(!batch :- it.undo.number)
+    item.path(0) = item.path(0).ur.Redo(!batch :- elapsed -> it.undo.number)
     item.play = block :: item.play
 
     if !batch
@@ -300,13 +293,10 @@ case class Game(
     val i = -nowColor-1
 
     state(i).path(0).redo.exists { it =>
-      minusTime -= it.move.elapsed
-      minusTime += it.undo.elapsed + elapsed
-
       if it.undo.intensity == this()(it.move)
       && this(it.move, this(it.move))
       then
-        redo(i)
+        redo(elapsed -> i)
 
         this(-i-1)
 
@@ -326,14 +316,12 @@ case class Game(
 
     for
       i <- 0 until state.size
+      item = state(i)
     do
-      val item = state(i)
       Path(id, 0, 1) +=: item.path
       state(i) = init._3(i).copy(path = item.path)
 
     check
-
-    minusTime = 0
 
     this(-1)
 

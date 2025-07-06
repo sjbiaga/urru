@@ -27,3 +27,16 @@ object Mutable:
 ////////////////////////////////////////////////////////////////////////////////
 
   given [T]: Conversion[Mutable[T], T] = _.value
+
+  object http4s:
+
+    import cats.effect.IO
+
+    import io.circe.{ Decoder, Encoder }
+    import io.circe.generic.auto.*
+
+    import org.http4s.circe.{ jsonEncoderOf, jsonOf }
+    import org.http4s.{ EntityDecoder, EntityEncoder }
+
+    given [T: Decoder]: EntityDecoder[IO, Mutable[T]] = jsonOf
+    given [T: Encoder]: EntityEncoder[IO, Mutable[T]] = jsonEncoderOf

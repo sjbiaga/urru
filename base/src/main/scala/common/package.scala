@@ -102,17 +102,52 @@ package common:
 
     object MapJsonProtocol extends MapJsonProtocol
 
-////////////////////////////////////////////////////////////////////////////////
+  object http4s:
 
-  package object futures:
+    import scala.collection.MapFactory
+    import scala.collection.mutable.{ HashMap, HashSet }
+    import scala.collection.mutable.{ ListBuffer => MutableList, StringBuilder }
 
-    import scala.concurrent.{ ExecutionContext, Future, SyncChannel }
+    import cats.effect.IO
 
-    def `Future*`[R](block: Future[R] => R)(using ExecutionContext): Future[R] =
-      val fch = new SyncChannel[Future[R]]()
-      val f = Future { block(fch.read) }
-      fch.write(f)
-      f
+    import io.circe.{ Decoder, Encoder, KeyDecoder, KeyEncoder }
+
+    import org.http4s.circe.{ jsonEncoderOf, jsonOf }
+    import org.http4s.{ EntityDecoder, EntityEncoder }
+
+    given [K: KeyDecoder, V: Decoder]: Decoder[HashMap[K, V]] =
+      Decoder.decodeMapLike[K, V, HashMap](summon[KeyDecoder[K]],
+                                           summon[Decoder[V]],
+                                           MapFactory.toFactory[K, V, HashMap](HashMap))
+    given [K: KeyEncoder, V: Encoder]: Encoder[HashMap[K, V]] =
+      Encoder.encodeMapLike[K, V, HashMap](summon[KeyEncoder[K]],
+                                           summon[Encoder[V]],
+                                           Iterable.from)
+
+    given [T: Decoder]: Decoder[HashSet[T]] =
+      Decoder.decodeSet.map(HashSet.from(_))
+    given [T: Encoder]: Encoder[HashSet[T]] =
+      Encoder.encodeSet.contramap(Set.from(_))
+
+    given [T: Decoder]: Decoder[MutableList[T]] =
+      Decoder.decodeList.map(MutableList.from(_))
+    given [T: Encoder]: Encoder[MutableList[T]] =
+      Encoder.encodeList.contramap(List.from(_))
+
+    given Decoder[StringBuilder] = Decoder.decodeString.map(StringBuilder(_))
+    given Encoder[StringBuilder] = Encoder.encodeString.contramap(_.toString)
+
+    given [K: KeyDecoder, V: Decoder]: EntityDecoder[IO, HashMap[K, V]] = jsonOf
+    given [K: KeyEncoder, V: Encoder]: EntityEncoder[IO, HashMap[K, V]] = jsonEncoderOf
+
+    given [T: Decoder]: EntityDecoder[IO, HashSet[T]] = jsonOf
+    given [T: Encoder]: EntityEncoder[IO, HashSet[T]] = jsonEncoderOf
+
+    given [T: Decoder]: EntityDecoder[IO, MutableList[T]] = jsonOf
+    given [T: Encoder]: EntityEncoder[IO, MutableList[T]] = jsonEncoderOf
+
+    given EntityDecoder[IO, StringBuilder] = jsonOf
+    given EntityEncoder[IO, StringBuilder] = jsonEncoderOf
 
 
 package object common:

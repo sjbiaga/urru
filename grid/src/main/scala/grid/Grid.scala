@@ -17,8 +17,20 @@ object Grid:
 ////////////////////////////////////////////////////////////////////////////////
 
   abstract trait GridOps[M, R]:
-    def move(it: M): R
+    def move(m: M): R
 
   abstract trait PathOps[P]:
-    def undo(item: P): Unit
-    def redo(item: P): Unit
+    def undo(p: P): Unit
+    def redo(p: P): Unit
+
+  object http4s:
+
+    import cats.effect.IO
+
+    import io.circe.generic.auto.*
+
+    import org.http4s.circe.{ jsonEncoderOf, jsonOf }
+    import org.http4s.{ EntityDecoder, EntityEncoder }
+
+    given EntityDecoder[IO, Grid.Id] = jsonOf
+    given EntityEncoder[IO, Grid.Id] = jsonEncoderOf

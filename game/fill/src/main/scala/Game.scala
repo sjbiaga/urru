@@ -11,15 +11,15 @@ import fs2.Stream
 import common.grid.{ row, x, col, unary_-, unary_! }
 import common.{ Mutable, :- }
 
-import Clue._
-import UndoRedo._
+import Clue.*
+import UndoRedo.*
 
 import tense.intensional.Data.Doubt
 
 import urru.grid.Grid.Id
-import urru.grid.Game.{ Counters, Feature }
-import Game._
-import DnD._
+import urru.grid.Game.{ Counters, Feature, Savepoint }
+import Game.*
+import DnD.*
 
 
 case class Game(
@@ -29,22 +29,19 @@ case class Game(
   override val clues: Set[Clue],
   override val features: Map[Feature, Boolean],
   override val state: MutableList[Fill],
+  override protected[fill] val init: (Set[Point], Map[Point, Cell], Seq[Fill]),
   override val hints: HashSet[Clue] = HashSet(),
   override val counters: Counters = Counters(0, 0, 0),
+  override val savepoint: Savepoint = Savepoint(),
   override val pending: MutableList[(Int, HashMap[Int, Int])] = MutableList(),
   override protected val batch: Mutable[Boolean] = Mutable(false),
   var selectionMode: Int = 0,
   var nowPlay: Play = null,
   var showAxes: Boolean = true,
-  var showJust: Option[Boolean] = None,
   var showPad: Boolean = true,
   var gameOver: Boolean = false,
-  var startTime: Long = -1,
-  var minusTime: Long = -1
-) extends urru.grid.Game[Seq[Play], Path, Cell, Doubt, Clue, Move, Fill]:
-
-  override protected[fill] val init: (Set[Point], Map[Point, Cell], Seq[Fill]) =
-    (Game(size, clues), Map.empty, state.toSeq)
+  var startTime: Long = -1
+) extends urru.grid.Game[Seq[Play], Path, Cell, Doubt, Clue, Move, Undo, Redo, Fill]:
 
   val wildcards = clues
     .filter(_.isInstanceOf[Multi])
@@ -53,6 +50,15 @@ case class Game(
   urru.grid.Game.duals.put(id, this)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+  private def this(id: Id,
+                   size: Point,
+                   grid: HashMap[Point, Cell],
+                   clues: Set[Clue],
+                   features: Map[Feature, Boolean],
+                   state: MutableList[Fill]) =
+    this(id, size, grid, clues, features, state,
+         (Game(size, clues), Map.empty, state.toSeq))
 
   def this(id: Id, size: Point, clues: Set[Clue], feats: Feature*)
           (blocks: Block*) =
@@ -180,7 +186,7 @@ case class Game(
 ////////////////////////////////////////////////////////////////////////////////
 
   import tense.intensional.Data
-  import Data._
+  import Data.*
 
   private[fill] def apply(): Move => Doubt = {
     case _ if !features(Feature.Just) =>
@@ -232,20 +238,9 @@ case class Game(
 
     if this(it, this(it))
     then
-      if {
-        item.path(0).redo.exists { r =>
-          if r.move == it
-          && r.undo.intensity == in
-          then
-            minusTime -= r.move.elapsed
-            minusTime += r.undo.elapsed + elapsed
-            true
-          else
-            false
-        }
-      }
+      if item.path(0).redo.exists { r => r.move == it && r.undo.intensity == in }
       then
-        redo(i)
+        redo(elapsed -> i)
       else
         move(it)(in)
 
@@ -279,7 +274,17 @@ case class Game(
 
       }.exists {
         case Some(it -> in) =>
-          this(it, in)(elapsed)
+          var self = item.path(0)
+          while self.depth > 1 && self.undo.get.move.block.block != it.block.block
+          do
+            self = self.parent.get
+
+          if self.depth > 1
+          then
+            false
+
+          else
+            this(it, in)(elapsed)
 
         case _ =>
           true
@@ -292,9 +297,7 @@ case class Game(
 
   object Just:
 
-    import cats.effect.kernel.Concurrent
-
-    def travel(using Concurrent[IO]): Stream[IO, (Int, Seq[(Doubt, Boolean, Int, Int, Int)])] =
+    def travel: Stream[IO, (Int, Seq[(Doubt, Undo Either Redo, Int, Int, Int)])] =
       if !features(Feature.Just)
       then
         Stream.empty
@@ -308,18 +311,19 @@ case class Game(
                 Stream.emits(it.path.map(_.tense.Just.travel(color)))
               }
           }
-          .parJoinUnbounded
-          .parJoinUnbounded
+          .flatten
+          .flatten
 
 ////////////////////////////////////////////////////////////////////////////////
 
-  override def undo(i: Int) =
+  override def undo(p: (Long, Int)) =
+    val (elapsed, i) = p
     val item = state(i)
     val it = item.path(0).undo.get
 
     item.play.head(grid)(grid -= _)
 
-    item.path(0) = item.path(0).ur.Undo(!batch :- it.number)
+    item.path(0) = item.path(0).ur.Undo(!batch :- elapsed -> it.number)
     item.play = item.play.tail
 
     grid ++= item.play.head(grid, wildcards)
@@ -339,7 +343,7 @@ case class Game(
                     || nowPlay(item.play.last.block.block*)(size, dir, clues, grid)
                   else nowPlay.block(size, -dir, clues, grid))
       then
-        undo(i)
+        undo(elapsed -> i)
 
         batch ::= pending.nonEmpty && pending(0)._1 == i
 
@@ -349,7 +353,7 @@ case class Game(
             for
               _ <- 1 to n
             do
-              redo(j)
+              redo(-1L -> j)
           }
 
           pending.remove(0)
@@ -357,9 +361,6 @@ case class Game(
           check
 
         else
-          minusTime += it.move.elapsed
-          it.elapsed = elapsed
-
           pending.clear
 
         batch ::= false
@@ -376,13 +377,14 @@ case class Game(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-  override def redo(i: Int) =
+  override def redo(p: (Long, Int)) =
+    val (elapsed, i) = p
     val item = state(i)
     val it = item.path(0).redo.get
 
     item.play.head(grid)(grid -= _)
 
-    item.path(0) = item.path(0).ur.Redo(!batch :- it.undo.number)
+    item.path(0) = item.path(0).ur.Redo(!batch :- elapsed -> it.undo.number)
     item.play = it.move +: item.play
 
     grid ++= item.play.head(grid, wildcards)
@@ -404,10 +406,7 @@ case class Game(
         if it.undo.intensity == this()(it.move)
         && this(it.move, this(it.move))
         then
-          redo(i)
-
-          minusTime -= it.move.elapsed
-          minusTime += it.undo.elapsed + elapsed
+          redo(elapsed -> i)
 
           this(-i-1)
 
@@ -442,8 +441,6 @@ case class Game(
       this.dragOut
 
     check
-
-    minusTime = 0
 
     this(-1)
 

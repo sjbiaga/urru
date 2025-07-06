@@ -52,6 +52,14 @@ package urru:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+      trait SavepointJsonProtocol extends GreenLeafJsonProtocol:
+        implicit lazy val SavepointFormat: JsonFormat[Game.Savepoint] =
+          jsonFormat2(Game.Savepoint.apply)
+
+      object SavepointJsonProtocol extends SavepointJsonProtocol
+
+////////////////////////////////////////////////////////////////////////////////
+
       trait FeatureJsonProtocol extends GreenLeafJsonProtocol:
         import spray.json.{ JsString, JsValue }
 

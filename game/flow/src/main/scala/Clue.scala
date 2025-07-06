@@ -71,3 +71,34 @@ object Clue:
       extends Clue:
     require(path.toSet.size == path.size)
     require(path.pairwise.init.forall(_.adj(_)))
+
+
+  object http4s:
+
+    import cats.effect.IO
+
+    import io.circe.{ Decoder, Encoder }
+    import io.circe.generic.auto.*
+    import io.circe.generic.{ semiauto => sa }
+
+    import org.http4s.circe.{ jsonEncoderOf, jsonOf }
+    import org.http4s.{ EntityDecoder, EntityEncoder }
+
+    import common.grid.http4s.given
+
+    given Decoder[Clue] = sa.deriveDecoder
+    given Encoder[Clue] = sa.deriveEncoder
+
+    given EntityDecoder[IO, Start] = jsonOf
+    given EntityDecoder[IO, Empty] = jsonOf
+    given EntityDecoder[IO, Cross] = jsonOf
+    given EntityDecoder[IO, Strip] = jsonOf
+    given EntityDecoder[IO, Frame] = jsonOf
+    given EntityDecoder[IO, Track] = jsonOf
+
+    given EntityEncoder[IO, Start] = jsonEncoderOf
+    given EntityEncoder[IO, Empty] = jsonEncoderOf
+    given EntityEncoder[IO, Cross] = jsonEncoderOf
+    given EntityEncoder[IO, Strip] = jsonEncoderOf
+    given EntityEncoder[IO, Frame] = jsonEncoderOf
+    given EntityEncoder[IO, Track] = jsonEncoderOf

@@ -14,14 +14,14 @@ import common.{ Mutable, Spiral, :- }
 import Spiral.magic0
 import Mutable.given
 
-import Clue._
-import UndoRedo._
+import Clue.*
+import UndoRedo.*
 
 import tense.intensional.Data.Doubt
 
-import urru.grid.Grid.Id
-import urru.grid.Game.{ Counters, Feature }
-import Game._
+import grid.Grid.Id
+import grid.Game.{ Counters, Feature, Savepoint }
+import Game.*
 
 
 case class Game(
@@ -31,20 +31,18 @@ case class Game(
   override val clues: Set[Clue],
   override val features: Map[Feature, Boolean],
   override val state: MutableList[Flow],
+  override protected[flow] val init: (Set[Point], Map[Point, Cell], Seq[Flow]),
   override val hints: HashSet[Clue] = HashSet(),
   override val counters: Counters = Counters(0, 0, 0),
+  override val savepoint: Savepoint = Savepoint(),
   override val pending: MutableList[(Int, HashMap[Int, Int])] = MutableList(),
   override protected val batch: Mutable[Boolean] = Mutable(false),
   var nowStart: (Int, Start) = (0, null),
   var showAxes: Boolean = true,
-  var showJust: Option[Boolean] = None,
   var gameOver: Boolean = false,
-  var startTime: Long = -1,
-  var minusTime: Long = -1
-) extends urru.grid.Game[Play, Path, Cell, Doubt, Clue, Move, Flow]:
-
-  override protected[flow] val init: (Set[Point], Map[Point, Cell], Seq[Flow]) =
-    (Game(size, clues, Spiral(size, 0)), grid.toMap, state.toSeq)
+  var startTime: Long = -1
+) extends urru.grid.Game[Play, Path, Cell, Doubt, Clue, Move, Undo, Redo, Flow]
+    with util.Visited.Game:
 
   private val crosses = clues
     .filter(_.isInstanceOf[Cross])
@@ -53,6 +51,15 @@ case class Game(
   urru.grid.Game.duals.put(id, this)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+  private def this(id: Id,
+                   size: Point,
+                   grid: HashMap[Point, Cell],
+                   clues: Set[Clue],
+                   features: Map[Feature, Boolean],
+                   state: MutableList[Flow]) =
+    this(id, size, grid, clues, features, state,
+         (Game(size, clues, Spiral(size, 0)), grid.toMap, state.toSeq))
 
   def this(id: Id, size: Point, clues: Set[Clue], feats: Feature*)
           (grid: Map[Point, Cell], start: Start*) =
@@ -156,7 +163,7 @@ case class Game(
 ////////////////////////////////////////////////////////////////////////////////
 
   import tense.intensional.Data
-  import Data._
+  import Data.*
 
   private def apply(): Move => Doubt = {
     case _ if !features(Feature.Just) =>
@@ -232,7 +239,7 @@ case class Game(
 ////////////////////////////////////////////////////////////////////////////////
 
   override def move(it: Move) = { in =>
-    val Move(odd, (row1, col1), by, _, _) = it
+    val Move(odd, _, by, _, _) = it
     val i = -it.color-1
     val item = state(2*i+odd)
 
@@ -254,13 +261,15 @@ case class Game(
   override def move(dir: (Int, Int))(elapsed: Long): Boolean =
     val (odd, start) = nowStart
     val color = start.color
-    val i = -color-1
+    val k = -color-1
+    val i = 2*k+odd
+    val item = state(i)
 
-    if !state(2*i+odd).over
+    if !item.over
     then
       val at = tip
       Move(size, at, dir).flatMap {
-        case by if { (color, at, by)(clues, grid, state(2*i+odd).play) } =>
+        case by if { (color, at, by)(clues, grid, item.play) } =>
           val it = Move(odd, at, by, color, elapsed)
           val in = this()(it)
           Some(it -> in)
@@ -268,20 +277,9 @@ case class Game(
           None
       }.exists {
         case (it, in) if this(it, this(it)) =>
-          if {
-            state(2*i+odd).path(0).redo.exists { r =>
-              if r.move == it
-              && r.undo.intensity == in
-              then
-                minusTime -= r.move.elapsed
-                minusTime += r.undo.elapsed + elapsed
-                true
-              else
-                false
-            }
-          }
+          if item.path(0).redo.exists { r => r.move == it && r.undo.intensity == in }
           then
-            redo(2*i+odd)
+            redo(elapsed -> i)
           else
             move(it)(in)
           true
@@ -295,9 +293,7 @@ case class Game(
 
   object Just:
 
-    import cats.effect.kernel.Concurrent
-
-    def travel(using Concurrent[IO]): Stream[IO, (Int, Seq[(Doubt, Boolean, Int, Int, Int)])] =
+    def travel: Stream[IO, (Int, Seq[(Doubt, Undo Either Redo, Int, Int, Int)])] =
       if !features(Feature.Just)
       then
         Stream.empty
@@ -311,12 +307,13 @@ case class Game(
                 Stream.emits(it.path.map(_.tense.Just.travel(color)))
               }
           }
-          .parJoinUnbounded
-          .parJoinUnbounded
+          .flatten
+          .flatten
 
 ////////////////////////////////////////////////////////////////////////////////
 
-  override def undo(i: Int) =
+  override def undo(p: (Long, Int)) =
+    val (elapsed, i) = p
     val item = state(i)
     val it = item.path(0).undo.get
     val Move(odd, _, _, _, _) = it.move
@@ -325,7 +322,7 @@ case class Game(
 
     state(2*(i/2)+1-odd).over = false
 
-    item.path(0) = item.path(0).ur.Undo(!batch :- it.number)
+    item.path(0) = item.path(0).ur.Undo(!batch :- elapsed -> it.number)
     item.play = item.play.init
     item.over = false
 
@@ -333,12 +330,13 @@ case class Game(
 
   override def undo()(elapsed: Long): Boolean =
     val (odd, start) = nowStart
-    val i = -start.color-1
+    val k = -start.color-1
+    val i = 2*k+odd
 
-    state(2*i+odd).path(0).undo.exists { it =>
-      undo(2*i+odd)
+    state(i).path(0).undo.exists { it =>
+      undo(elapsed -> i)
 
-      batch ::= pending.nonEmpty && pending(0)._1 == 2*i+odd
+      batch ::= pending.nonEmpty && pending(0)._1 == i
 
       if batch
       then
@@ -346,7 +344,7 @@ case class Game(
           for
             _ <- 1 to n
           do
-            redo(j)
+            redo(-1L -> j)
         }
 
         pending.remove(0)
@@ -354,9 +352,6 @@ case class Game(
         check
 
       else
-        minusTime += it.move.elapsed
-        it.elapsed = elapsed
-
         pending.clear
 
       batch ::= false
@@ -367,7 +362,8 @@ case class Game(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-  override def redo(i: Int) =
+  override def redo(p: (Long, Int)) =
+    val (elapsed, i) = p
     val item = state(i)
     val it = item.path(0).redo.get
     val Move(odd, at, by, color, _) = it.move
@@ -380,7 +376,7 @@ case class Game(
     then
       state(2*(i/2)+1-odd) = state(2*(i/2)+1-odd).copy(over = !open)
 
-    item.path(0) = item.path(0).ur.Redo(!batch :- it.undo.number)
+    item.path(0) = item.path(0).ur.Redo(!batch :- elapsed -> it.undo.number)
     item.play = item.play :+ by
     item.over = !open
 
@@ -390,16 +386,14 @@ case class Game(
 
   override def redo()(elapsed: Long): Boolean =
     val (odd, start) = nowStart
-    val i = -start.color-1
+    val k = -start.color-1
+    val i = 2*k+odd
 
-    state(2*i+odd).path(0).redo.exists { it =>
+    state(i).path(0).redo.exists { it =>
       if it.undo.intensity == this()(it.move)
       && this(it.move, this(it.move))
       then
-        redo(2*i+odd)
-
-        minusTime -= it.move.elapsed
-        minusTime += it.undo.elapsed + elapsed
+        redo(elapsed -> i)
 
         true
 
@@ -418,14 +412,20 @@ case class Game(
 
     for
       i <- 0 until state.size
+      item = state(i)
     do
-      val item = state(i)
       Path(id, 0, 1) +=: item.path
       state(i) = init._3(i).copy(path = item.path)
 
     check
 
-    minusTime = 0
+    clues
+      .foreach {
+        case Start(at, _, c) =>
+          val i = -c-1
+          val odd = state.indexWhere(_.play.head == at) % 2
+        case _ =>
+      }
 
     this(-1)
 
@@ -439,7 +439,7 @@ case class Game(
     nowStart = 1-odd -> start
 
   private def check: Unit =
-    gameOver = state.map(_.over).forall(identity)
+    gameOver = state.forall(_.over)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -513,7 +513,9 @@ object Game:
     }
 
   def apply(number: Long, size: Point, clues: Set[Clue], feats: Feature*): Game =
-    val id = Id(number)
+    this(Id(number), size, clues, feats*)
+
+  def apply(id: Id, size: Point, clues: Set[Clue], feats: Feature*): Game =
     val start = this(clues)
     val grid = this(start)
     val open = this(size, clues, Spiral(size, 0))
@@ -521,3 +523,24 @@ object Game:
     val game = new Game(id, size, clues ++ empty, feats*)(grid, start*)
     game.restart
     game
+
+  object http4s:
+
+    import cats.effect.IO
+
+    import io.circe.generic.auto.*
+
+    import org.http4s.circe.{ jsonEncoderOf, jsonOf }
+    import org.http4s.{ EntityDecoder, EntityEncoder }
+
+    import common.http4s.given
+    import common.grid.http4s.given
+    import common.Mutable.http4s.given
+    import grid.Grid.http4s.given
+    import Counters.http4s.given
+    import Feature.http4s.given
+    import Path.http4s.given
+    import Savepoint.http4s.given
+
+    given EntityDecoder[IO, Game] = jsonOf
+    given EntityEncoder[IO, Game] = jsonEncoderOf

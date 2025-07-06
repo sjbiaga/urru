@@ -16,6 +16,7 @@ package object grid:
     inline def unary_! : Boolean = row + col == 0
     inline def +(that: (Int, Int)): (Int, Int) = (row + that.row, col + that.col)
     inline def -(that: (Int, Int)): (Int, Int) = (row - that.row, col - that.col)
+    inline def x: String = s"${row}x${col}"
 
   extension (self: Point)
     @inline def adj(that: Point) =
@@ -32,3 +33,19 @@ package object grid:
         (0, -1) -> adj._3,
         (0, 1) -> adj._4,
       )
+
+  object http4s:
+
+    import scala.util.Try
+
+    import cats.effect.IO
+
+    import io.circe.{ KeyDecoder, KeyEncoder }
+
+    given KeyDecoder[Point] = KeyDecoder.instance { it =>
+      Try {
+        val Array(row, col) = "x".r.split(it)
+        row.toInt -> col.toInt
+      }.toOption
+    }
+    given KeyEncoder[Point] = KeyEncoder[String].contramap(_.x)

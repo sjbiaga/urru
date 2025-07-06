@@ -1,4 +1,4 @@
-ThisBuild / scalaVersion := "3.5.0-RC1"
+ThisBuild / scalaVersion := "3.7.1"
 
 Global / resolvers += "scala-integration" at "https://scala-ci.typesafe.com/artifactory/scala-integration/"
 
@@ -14,11 +14,11 @@ lazy val root = (project in file("."))
     name := "urru",
     organization := "sjb.ia.ga",
     organizationName := "sjbiaga",
-    version := "1.0",
+    version := "2.0",
     maxErrors := 5,
-    scalaVersion := "3.5.0-RC1",
+    scalaVersion := "3.7.1",
     javacOptions ++= Seq("-source", "16"),
-    crossScalaVersions ++= Seq("2.13.14", "3.5.0-RC1"),
+    crossScalaVersions ++= Seq("2.13.16", "3.7.1"),
     scalacOptions ++= scala3Opts, // :+ "-Xprint:typer",
   )
 
@@ -27,11 +27,11 @@ lazy val base = (project in file("base"))
     name := "base",
     organization := "sjb.ia.ga",
     organizationName := "sjbiaga",
-    version := "1.0",
+    version := "2.0",
     maxErrors := 5,
-    scalaVersion := "3.5.0-RC1",
+    scalaVersion := "3.7.1",
     javacOptions ++= Seq("-source", "16"),
-    crossScalaVersions ++= Seq("2.13.14", "3.5.0-RC1"),
+    crossScalaVersions ++= Seq("2.13.16", "3.7.1"),
     scalacOptions ++= scala3Opts, // :+ "-Xprint:typer",
   )
 
@@ -41,11 +41,11 @@ lazy val grid = (project in file("grid"))
     name := "grid",
     organization := "sjb.ia.ga",
     organizationName := "sjbiaga",
-    version := "1.0",
+    version := "2.0",
     maxErrors := 5,
-    scalaVersion := "3.5.0-RC1",
+    scalaVersion := "3.7.1",
     javacOptions ++= Seq("-source", "16"),
-    crossScalaVersions ++= Seq("2.13.14", "3.5.0-RC1"),
+    crossScalaVersions ++= Seq("2.13.16", "3.7.1"),
     scalacOptions ++= scala3Opts, // :+ "-Xprint:typer",
   )
 
@@ -55,11 +55,11 @@ lazy val game = (project in file("game"))
     name := "game",
     organization := "sjb.ia.ga",
     organizationName := "sjbiaga",
-    version := "1.0",
+    version := "2.0",
     maxErrors := 5,
-    scalaVersion := "3.5.0-RC1",
+    scalaVersion := "3.7.1",
     javacOptions ++= Seq("-source", "16"),
-    crossScalaVersions ++= Seq("2.13.14", "3.5.0-RC1"),
+    crossScalaVersions ++= Seq("2.13.16", "3.7.1"),
     scalacOptions ++= scala3Opts, // :+ "-Xprint:typer",
   )
 
@@ -70,11 +70,11 @@ lazy val `game-flow` = (project in file("game/flow"))
     name := "game.flow",
     organization := "sjb.ia.ga",
     organizationName := "sjbiaga",
-    version := "1.0",
+    version := "2.0",
     maxErrors := 5,
-    scalaVersion := "3.5.0-RC1",
+    scalaVersion := "3.7.1",
     javacOptions ++= Seq("-source", "16"),
-    crossScalaVersions ++= Seq("2.13.14", "3.5.0-RC1"),
+    crossScalaVersions ++= Seq("2.13.16", "3.7.1"),
     scalacOptions ++= scala3Opts, // :+ "-Xprint:typer",
   )
 
@@ -85,11 +85,11 @@ lazy val `game-fold` = (project in file("game/fold"))
     name := "game.fold",
     organization := "sjb.ia.ga",
     organizationName := "sjbiaga",
-    version := "1.0",
+    version := "2.0",
     maxErrors := 5,
-    scalaVersion := "3.5.0-RC1",
+    scalaVersion := "3.7.1",
     javacOptions ++= Seq("-source", "16"),
-    crossScalaVersions ++= Seq("2.13.14", "3.5.0-RC1"),
+    crossScalaVersions ++= Seq("2.13.16", "3.7.1"),
     scalacOptions ++= scala3Opts, // :+ "-Xprint:typer",
   )
 
@@ -100,13 +100,15 @@ lazy val `game-fill` = (project in file("game/fill"))
     name := "game.fill",
     organization := "sjb.ia.ga",
     organizationName := "sjbiaga",
-    version := "1.0",
+    version := "2.0",
     maxErrors := 5,
-    scalaVersion := "3.5.0-RC1",
+    scalaVersion := "3.7.1",
     javacOptions ++= Seq("-source", "16"),
-    crossScalaVersions ++= Seq("2.13.14", "3.5.0-RC1"),
+    crossScalaVersions ++= Seq("2.13.16", "3.7.1"),
     scalacOptions ++= scala3Opts, // :+ "-Xprint:typer",
   )
+
+Compile / unmanagedSourceDirectories / excludeFilter := "sΠ"
 
 // ThisBuild / evictionErrorLevel := Level.Info
 

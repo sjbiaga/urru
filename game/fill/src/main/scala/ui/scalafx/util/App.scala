@@ -4,11 +4,10 @@ package fill
 package ui.scalafx
 package util
 
-import cats.effect.{ Deferred, IO, Ref, Resource }
-import cats.effect.std.Dispatcher
+import scala.concurrent.duration.*
 
-import fs2.Stream
-import fs2.io.file.{ Files, Path }
+import cats.effect.{ Clock, Deferred, IO, Ref, Resource }
+import cats.effect.std.{ Dispatcher, CyclicBarrier }
 
 import scalafx.application.Platform.{ exit, runLater }
 import scalafx.scene.Scene
@@ -22,19 +21,21 @@ import scalafx.scene.layout.{ HBox, VBox }
 import scalafx.application.JFXApp3
 
 import common.grid.{ row, x, col, +, -, unary_! }
+import common.{ Mongo, Mutable }
+import Mutable.given
 
-import Clue._
+import Clue.*
 
-import DnD._
+import DnD.*
 
 import Draw.{ colors, draw, redraw, dim }
 import App.{ Event, apply, pads }
 
 
 class App(dispatcher: Dispatcher[IO],
-          val name: String, game: Game,
+          val name: String, game: Mutable[Game],
           eventR: Ref[IO, Deferred[IO, Event]],
-          loopR: Ref[IO, Deferred[IO, Unit]])
+          loopCB: CyclicBarrier[IO])
     extends JFXApp3:
 
   val size = game.size
@@ -44,8 +45,7 @@ class App(dispatcher: Dispatcher[IO],
       for
         eventD <- eventR.get
         _ <- eventD.complete(event)
-        loopD <- loopR.get
-        _ <- loopD.get
+        _ <- loopCB.await
       yield ()
     }
 
@@ -253,7 +253,7 @@ class App(dispatcher: Dispatcher[IO],
     board.redraw(game)()
     game.pads(App.this)
     prompt(3).visible = false
-    game(App.this, false, 0L)
+    game(App.this, false, 0L, 0L)
 
   override def stopApp(): Unit =
     dispatch(Event(None, None))
@@ -270,53 +270,86 @@ object App:
     KeyCode.RIGHT -> (0, 1),
   )
 
-  extension(game: Game)
+  extension(game: Mutable[Game])
+
+    private def time(app: App, idleTime: Long, now: Long): Unit =
+      val elapsed = (now - idleTime) - game.startTime
+      val ms = elapsed % 1000
+      val dd = (elapsed / 1000) / 86400
+      val hh = ((elapsed / 1000) % 86400) / 3600
+      val mm = (((elapsed / 1000) % 86400) % 3600) / 60
+      val ss = ((((elapsed / 1000) % 86400) % 3600) % 60) / 1
+      app.prompt(2).text = s"• ELAPSED:${if dd > 0 then s" $dd day${if dd > 1 then "s" else ""}" else ""} $hh:$mm:$ss.$ms"
 
     def apply(app: App,
               eventR: Ref[IO, Deferred[IO, Event]],
-              loopR: Ref[IO, Deferred[IO, Unit]]): IO[Unit] =
+              loopCB: CyclicBarrier[IO]): IO[Unit] =
+
+      val mongo = Mongo(Config().urru.mongo)
 
       val board = app.board
 
-      def restart(idleTimeR: Ref[IO, Long],
-                  startedR: Ref[IO, Long]
-      ): IO[Unit] =
+      def reload(idleTimeR: Ref[IO, Long],
+                 startedR: Ref[IO, Long]): IO[Unit] =
         for
           _ <- idleTimeR.set(0L)
-          _ <- startedR.set(System.currentTimeMillis)
-          started <- startedR.get
+          started <- Clock[IO].monotonic.map(_.toMillis)
+          _ <- startedR.set(started)
           _ <- IO {
-            game.restart
-            game.startTime = started
-            board.redraw(game)()
-            game.pads(app)
-          }
+                 game.restart
+                 game.startTime = started
+                 board.redraw(game)()
+                 game.pads(app)
+               }
         yield ()
 
-      def usage: IO[Unit] = IO {
+      def usage: IO[Unit] = help >> IO { exit() }
+
+      def help: IO[Unit] = IO {
         println("Use TAB to switch colors, - and + to drag'n'drop, / for pad.")
         println("Use arrows ←, →, ↑, ↓ to move left, right, up, down.")
-        println("Use # to toggle grid, @ to restart game, | to pause.")
+        println("Use # to toggle grid, twice @ to restart game, | to pause.")
         println("Use keys BACKSPACE and ENTER to undo or redo.")
-        exit()
       }
+
+      def load(savepoint: Option[String]): IO[Unit] =
+        IO.blocking {
+          savepoint
+            .flatMap {
+              mongo.load(_, "fill").headOption.map {
+                import spray.json.enrichString
+                import fill.util.JsonFormats.GameJsonProtocol.*
+                _.toJson.parseJson.convertTo[Game]
+              }
+            }
+            .tapEach { game ::= _ }
+            .foreach { _ =>
+              board.redraw(game)()
+              game.pads(app)
+            }
+        }
+
+      def tick(idleTime: Long): IO[Unit] =
+        for
+          _ <- IO.sleep(1.second)
+          now <- Clock[IO].monotonic.map(_.toMillis)
+          _ <- IO { runLater { time(app, idleTime, now) } }
+          _ <- tick(idleTime)
+        yield ()
 
       def loop(idleTimeR: Ref[IO, Long],
                startedR: Ref[IO, Long],
                exitR: Ref[IO, Boolean],
                pendingR: Ref[IO, Boolean],
-               justD: Deferred[IO, Unit],
+               justCB: CyclicBarrier[IO],
                pausedR: Ref[IO, Boolean]
       ): IO[Unit] =
         ( for
-            _ <-  ( if game.showJust.isEmpty
+            _ <-  ( if true
                     then
-                     Resource.unit[IO]
+                      Resource.unit[IO]
                     else
-                      ( for
-                          _ <- justD.complete(())
-                        yield ()
-                      ).background
+                      Resource.eval(justCB.await)
 /*
                       ( for
                           _ <- IO { app.prompt(3).visible = false }
@@ -335,28 +368,33 @@ object App:
                             }
                           }.compile.drain
                           _ <- IO { app.prompt(3).visible = true }
-                          _ <- justD.complete(())
+                          _ <- justCB.await
                         yield ()
                       ).background
 */
                   )
+            paused <- Resource.eval(pausedR.get)
+            idleTime <- Resource.eval(idleTimeR.get)
+            _ <- (  if game.gameOver || paused
+                    then
+                      Resource.unit[IO]
+                    else
+                      tick(idleTime).background
+                 )
           yield ()
         ).use { _ =>
           for
-            _ <-  ( if game.showJust.nonEmpty
+            _ <-  ( if true
                     then
-                      justD.get
-                    // else if game.showHave.nonEmpty
-                    // then
-                    //   haveD.get
-                    else
                       IO.unit
+                    else
+                      justCB.await
                   )
             idleTime <- idleTimeR.get
             paused <- pausedR.get
 
             started <- startedR.get
-            ended = System.currentTimeMillis
+            ended <- Clock[IO].monotonic.map(_.toMillis)
 
             _ <- idleTimeR.update(_ + ended - started)
 
@@ -366,6 +404,7 @@ object App:
             Event(key, drag) <- eventD.get
 
             started <- startedR.get
+            ended <- Clock[IO].monotonic.map(_.toMillis)
             elapsed = System.currentTimeMillis - started
 
             _ <- startedR.update(_ + elapsed)
@@ -383,9 +422,9 @@ object App:
                           then
                             if move
                             then
-                              game(-i-1).dragOut
+                              game.value(-i-1).dragOut
                             else
-                              game(-i-1)
+                              game.value(-i-1)
                             game.dropIn(-1)
                             board.redraw(game)()
                             game.pads(app, true)
@@ -418,11 +457,11 @@ object App:
                               board.redraw(game)()
                         else if move
                         then
-                          game(-i-1).dragOut
+                          game.value(-i-1).dragOut
                           game(app)
                           game.pads(app, true)
                         else
-                          game(-i-1)
+                          game.value(-i-1)
                       }
 
                     else if game.selectionMode < 0
@@ -431,48 +470,49 @@ object App:
 
                     else if game.selectionMode > 0
                     then
-                        val keyCode = key.get.getCode()
+                      val keyCode = key.get.getCode()
 
-                        if keyCode eq KeyCode.ESCAPE
-                        then
-                          IO {
-                            game.dropOut
-                            board.redraw(game)()
+                      if keyCode eq KeyCode.ESCAPE
+                      then
+                        IO {
+                          game.dropOut
+                          board.redraw(game)()
+                          game.pads(app, true)
+                        }
+
+                      else if keyCode eq KeyCode.BACK_SPACE
+                      then
+                        IO {
+                          game.dragOn
+                          board.redraw(game)()
+                          if game.selectionMode == 0
+                          then
                             game.pads(app, true)
-                          }
+                        }
 
-                        else if keyCode eq KeyCode.BACK_SPACE
-                        then
-                          IO {
-                            game.dragOn
-                            board.redraw(game)()
-                            if game.selectionMode == 0
-                            then
-                              game.pads(app, true)
-                          }
+                      else if keyCode eq KeyCode.ENTER
+                      then
+                        IO {
+                          if !game.dragOff(elapsed)
+                          then
+                            game.dropOut
+                            game.pads(app, true)
+                          board.redraw(game)()
+                        }
 
-                        else if keyCode eq KeyCode.ENTER
-                        then
-                          IO {
-                            if !game.dragOff(elapsed)
-                            then
-                              game.dropOut
-                              game.pads(app, true)
-                            board.redraw(game)()
-                          }
+                      else if keyCode eq KeyCode.DIGIT3
+                      then
+                        IO {
+                          game.showAxes = !game.showAxes
+                          board.redraw(game)()
+                        }
 
-                        else if keyCode eq KeyCode.DIGIT3
-                        then
-                          IO {
-                            game.showAxes = !game.showAxes
-                            board.redraw(game)()
-                          }
-                        else if keyCode eq KeyCode.DIGIT2
-                        then
-                          restart(idleTimeR, startedR)
+                      else if keyCode eq KeyCode.DIGIT2
+                      then
+                        reload(idleTimeR, startedR)
 
-                        else
-                          IO.unit
+                      else
+                        IO.unit
 
                     else
                       val keyCode = key.get.getCode()
@@ -518,56 +558,38 @@ object App:
                           game.showAxes = !game.showAxes
                           board.redraw(game)()
                         }
+
                       else if keyCode eq KeyCode.DIGIT2
                       then
-                        restart(idleTimeR, startedR)
+                        reload(idleTimeR, startedR)
 
                       else if keyCode eq KeyCode.BACK_SLASH
                       then
                         pausedR.set(true)
 
+                      else if keyCode eq KeyCode.F1
+                      then
+                        help
+
+                      else if keyCode eq KeyCode.F2
+                      then
+                        import spray.json.enrichAny
+                        import fill.util.JsonFormats.GameJsonProtocol.*
+                        mongo.file(game.value.toJson, "fill", app.name)
+
+                      else if keyCode eq KeyCode.F9
+                      then
+                        load(game.savepoint.previous)
+
                       else if keyCode eq KeyCode.COMMA
                       then
-                        for
-                          cwd <- Files[IO].currentWorkingDirectory
-                          s = Stream.emit[IO, String] {
-                            import scala.concurrent.Await
-                            import scala.concurrent.duration._
-                            import spray.json.enrichAny
-                            import spray.json.JsString
-                            import fill.util.JsonFormats.GameJsonProtocol._
-                            import org.bson.types.ObjectId
-                            import org.mongodb.scala._
-                            val mongoClient = MongoClient("mongodb://127.0.0.1:27017")
-                            val database = mongoClient.getDatabase("urru")
-                            val collection = database.getCollection("fill")
-                            var json = game.toJson
-                            var jsonObj = json.asJsObject
-                            val jsonId = JsString(ObjectId().toString)
-                            jsonObj = jsonObj.copy(fields = jsonObj.fields.updated("_id", jsonId))
-                            json = jsonObj.toJson
-                            val observable = collection.insertOne(Document(json.toString))
-                            Await.result(observable.toFuture(), 10.seconds)
-                            json.prettyPrint
-                          }
-                          name = Pisc.uuid(app.name)
-                          _ <- s.through(Files[IO].writeUtf8Lines(cwd / (name + ".json"))).compile.drain
-                        yield ()
-
-                      else if keyCode eq KeyCode.PERIOD // PiScala
-                      then
-                        Pisc(app.name, game)
-
-                      else if keyCode eq KeyCode.DIGIT7
-                      then
-                        IO {
-                          game.showJust = None
-                          app.prompt(3).visible = false
+                        IO.blocking {
+                          import spray.json.enrichAny
+                          import fill.util.JsonFormats.GameJsonProtocol.*
+                          val current = game.savepoint.current
+                          game.savepoint.current = Some(mongo.save(game.value.toJson, "fill")._2)
+                          game.savepoint.previous = current
                         }
-
-                      else if keyCode eq KeyCode.DIGIT8
-                      then
-                        IO { game.showJust = game.showJust.map(!_).orElse(Some(true)) }
 
                       else if keyCode eq KeyCode.MINUS
                       then
@@ -626,50 +648,34 @@ object App:
 
                     )
 
-            _ <- IO { game(app, paused, idleTime) } // prompt
+            now <- Clock[IO].monotonic.map(_.toMillis)
+            _ <- IO { game(app, paused, idleTime, now) } // prompt
           yield ()
         } >> {
           for
             eventD <- Deferred[IO, Event]
             _ <- eventR.set(eventD)
-            loopD <- loopR.get
-            _ <- loopD.complete(())
-            loopD <- Deferred[IO, Unit]
-            _ <- loopR.set(loopD)
+            _ <- loopCB.await
 
-            justD <- Deferred[IO, Unit]
-            _ <-  ( if game.showJust.isEmpty
-                    then
-                      justD.complete(())
-                    else
-                      IO.unit
-                  )
             exit <- exitR.get
             _ <-  ( if exit
                     then
                       IO.unit
                     else
-                      loop(idleTimeR, startedR, exitR, pendingR, justD, pausedR)
+                      loop(idleTimeR, startedR, exitR, pendingR, justCB, pausedR)
                   )
           yield ()
         }
       for
         idleTimeR <- IO.ref(0L)
-        idleTimeR <- IO.ref(0L)
-        startedR <- IO.ref(System.currentTimeMillis)
+        started <- Clock[IO].monotonic.map(_.toMillis)
+        startedR <- IO.ref(started)
         exitR <- IO.ref(false)
         pendingR <- IO.ref(game.pending.nonEmpty)
-        justD <- Deferred[IO, Unit]
-        _ <-  ( if game.showJust.isEmpty
-                then
-                  justD.complete(())
-                else
-                  IO.unit
-              )
+        justCB <- CyclicBarrier[IO](2)
         pausedR <- IO.ref(false)
-        started <- startedR.get
         _ <- IO { game.startTime = started }
-        _ <- loop(idleTimeR, startedR, exitR, pendingR, justD, pausedR)
+        _ <- loop(idleTimeR, startedR, exitR, pendingR, justCB, pausedR)
       yield ()
 
     def pads(app: App, now: Boolean = false): Unit =
@@ -700,7 +706,7 @@ object App:
       else
         runLater { app.board.draw(block) }
 
-    def apply(app: App, paused: Boolean, idleTime: Long): Unit = runLater {
+    def apply(app: App, paused: Boolean, idleTime: Long, now: Long): Unit = runLater {
       val pending = app.pending.getChildren()
       for
         i <- 0 until game.state.size
@@ -755,13 +761,8 @@ object App:
         if paused
         then
           prompt(2).text = "• PAUSED"
-        else
-          val elapsed = 0L max ((System.currentTimeMillis - idleTime) - game.startTime - (0L max game.minusTime))
-          val ms = elapsed % 1000
-          val dd = (elapsed / 1000) / 86400
-          val hh = ((elapsed / 1000) % 86400) / 3600
-          val mm = (((elapsed / 1000) % 86400) % 3600) / 60
-          val ss = ((((elapsed / 1000) % 86400) % 3600) % 60) / 1
-          prompt(2).text = s"• ELAPSED:${if dd > 0 then s" $dd day${if dd > 1 then "s" else ""}" else ""} $hh:$mm:$ss.$ms"
+        else if now > 0
+        then
+          time(app, idleTime, now)
 
     }

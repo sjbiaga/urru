@@ -1,15 +1,29 @@
 libraryDependencies ++= Seq(
-//  "org.wvlet.airframe" % "airframe_2.13" % "24.3.0",
+//  "org.wvlet.airframe" % "airframe_2.13" % "24.11.0",
 
-  "co.fs2" %% "fs2-io" % "3.10.2",
+  "co.fs2" %% "fs2-io" % "3.12.0",
 
-  "com.googlecode.lanterna" % "lanterna" % "3.1.2",
-  "org.scalafx" %% "scalafx" % "22.0.0-R33",
+  "org.scalafx" %% "scalafx" % "24.0.0-R35",
 
-  "org.scalatest" %% "scalatest" % "3.2.18" % Test
+  "io.circe" %% "circe-core" % "0.14.13",
+  "io.circe" %% "circe-generic" % "0.14.13",
+  "io.circe" %% "circe-parser" % "0.14.13",
+
+  "org.http4s" %% "http4s-ember-client" % "1.0.0-M44",
+  "org.http4s" %% "http4s-ember-server" % "1.0.0-M44",
+  "org.http4s" %% "http4s-circe" % "1.0.0-M44",
+  "org.http4s" %% "http4s-dsl" % "1.0.0-M44",
+
+  "org.typelevel" %% "log4cats-slf4j" % "2.7.0",
+
+  "com.github.fd4s" %% "fs2-kafka" % "3.7.0",
+  "org.apache.kafka" % "kafka-clients" % "4.0.0",
+
+//  "org.scalamock" %% "scalamock" % "6.0.0" % Test,
+  "io.github.hughsimpson" %% "scalamock" % "6.1.0.0" % Test,
+  "org.scalatest" %% "scalatest" % "3.2.19" % Test
 )
 
-// Compile / mainClass := Some("urru.game.flow.ui.lanterna.Main") // run / fork := false
 Compile / mainClass := Some("urru.game.flow.ui.scalafx.Main")
 Compile / run / fork := true
 

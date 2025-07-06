@@ -6,7 +6,7 @@ import scala.annotation.tailrec
 
 import common.grid.{ row, col }
 
-import Clue._
+import Clue.*
 
 import tense.intensional.Data.Doubt
 
@@ -14,7 +14,7 @@ import tense.intensional.Data.DragAndDrop
 
 import urru.grid.Game.Feature
 
-import Game._
+import Game.*
 
 
 object DnD:

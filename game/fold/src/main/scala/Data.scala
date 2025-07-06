@@ -15,8 +15,8 @@ case class Data(fact: Fact, doubt: Doubt)
 
 package tense:
 
-  import grid.Game.Data._
-  import Clue._
+  import grid.Game.Data.*
+  import Clue.*
 
   package extensional:
 

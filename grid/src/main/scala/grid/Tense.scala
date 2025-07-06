@@ -4,9 +4,9 @@ package grid
 import scala.collection.mutable.{ HashMap, HashSet }
 
 import grid.Game
-import Game._
+import Game.*
 import grid.Grid
-import Grid._
+import Grid.*
 
 
 sealed abstract trait Tense[C, V, M, R, F[_], W[_, _]]
@@ -51,7 +51,7 @@ package tense:
     abstract trait Grid[D, C, V, M, P, W[_, _]]
         extends urru.grid.Grid[C, Point, V, Tense.Intensional, W]
         with GridOps[M, D => Unit]
-        with PathOps[P]
+        with PathOps[(Long/*elapsed*/, P)]
 
 ////////////////////////////////////////////////////////////////////////////////
 

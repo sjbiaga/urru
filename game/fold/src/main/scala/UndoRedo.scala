@@ -7,9 +7,11 @@ import common.Mutable
 import urru.grid.Grid.Id
 import tense.intensional.Data.Doubt
 
+import UndoRedo.*
+
 
 sealed trait UndoRedo[UR <: UndoRedo[UR]]
-    extends urru.UndoRedo[Path, Cell, Doubt, Clue, Move, UR]
+    extends urru.UndoRedo[Path, Cell, Doubt, Clue, Move, Undo, Redo, UR]
 
 
 object UndoRedo:
@@ -21,13 +23,13 @@ object UndoRedo:
     override val next: Option[Undo],
     override val path: Mutable[Path],
     override val number: Long,
-    override val identifier: Mutable[Long] = Mutable(-1L),
-    var elapsed: Long = -1
+    override val identifier: Long = -1L,
+    override val elapsed: Mutable[Long] = Mutable(-1L)
   ) extends UndoRedo[Undo]
-      with urru.UndoRedo.Undo[Path, Cell, Doubt, Clue, Move, Undo]:
+      with urru.UndoRedo.Undo[Path, Cell, Doubt, Clue, Move, Undo, Redo]:
 
     override def apply(real: Path, id: Long) =
-      copy(path = Mutable(real), identifier = Mutable(id))
+      copy(path = Mutable(real), identifier = Mutable(id), elapsed = Mutable(elapsed))
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,11 +38,12 @@ object UndoRedo:
     override val undo: Undo,
     override val next: Option[Redo],
     override val path: Mutable[Path],
-    override val identifier: Mutable[Long] = Mutable(-1L)
+    override val identifier: Long = -1L,
+    override val elapsed: Mutable[Long] = Mutable(-1L)
   ) extends UndoRedo[Redo]
-      with urru.UndoRedo.Redo[Path, Cell, Doubt, Clue, Move, Redo, Undo]:
+      with urru.UndoRedo.Redo[Path, Cell, Doubt, Clue, Move, Undo, Redo]:
 
     override val move: Move = undo.move
 
     override def apply(real: Path, id: Long) =
-      copy(path = Mutable(real), identifier = Mutable(id))
+      copy(path = Mutable(real), identifier = Mutable(id), elapsed = Mutable(elapsed))

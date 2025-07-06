@@ -1,15 +1,23 @@
 libraryDependencies ++= Seq(
-//  "org.wvlet.airframe" % "airframe_2.13" % "24.3.0",
+//  "org.wvlet.airframe" % "airframe_2.13" % "24.11.0",
 
-  "co.fs2" %% "fs2-io" % "3.10.2",
+  "co.fs2" %% "fs2-io" % "3.12.0",
 
-  "com.googlecode.lanterna" % "lanterna" % "3.1.2",
-  "org.scalafx" %% "scalafx" % "22.0.0-R33",
+  "org.scalafx" %% "scalafx" % "24.0.0-R35",
 
-  "org.scalatest" %% "scalatest" % "3.2.18" % Test
+  "org.http4s" %% "http4s-ember-client" % "1.0.0-M44",
+  "org.http4s" %% "http4s-circe" % "1.0.0-M44",
+  "org.http4s" %% "http4s-dsl" % "1.0.0-M44",
+
+  "io.circe" %% "circe-core" % "0.14.13",
+  "io.circe" %% "circe-generic" % "0.14.13",
+  "io.circe" %% "circe-parser" % "0.14.13",
+
+  "org.apache.kafka" % "kafka-clients" % "4.0.0",
+
+  "org.scalatest" %% "scalatest" % "3.2.19" % Test
 )
 
-// Compile / mainClass := Some("urru.game.fold.ui.lanterna.Main") // run / fork := false
 Compile / mainClass := Some("urru.game.fold.ui.scalafx.Main")
 Compile / run / fork := true
 

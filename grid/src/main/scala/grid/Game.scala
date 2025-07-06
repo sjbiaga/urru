@@ -9,17 +9,19 @@ import common.Mutable
 import Mutable.given
 
 import tense.intensional.Grid
-import UndoRedo._
+import UndoRedo.*
 
-import Game._
+import Game.*
 
 
 abstract trait Game[T,
-  B <: Path[B, C, D, K, M, ?, ?],
+  B <: Path[B, C, D, K, M, U, R],
   C <: Cell,
   D,
   K <: Clue,
   M <: Move[C, K],
+  U <: Undo[B, C, D, K, M, U, R],
+  R <: Redo[B, C, D, K, M, U, R],
   I <: Item[T, B]
 ] extends Grid[D, K, C, M, Int, HashMap]:
 
@@ -28,6 +30,7 @@ abstract trait Game[T,
   val hints: HashSet[K]
 
   val counters: Counters
+  val savepoint: Savepoint
   val pending: MutableList[(Int, HashMap[Int, Int])]
   protected val batch: Mutable[Boolean]
 
@@ -60,7 +63,7 @@ abstract trait Game[T,
         for
           _ <- 1 to n
         do
-          undo(j)
+          undo(-1L -> j)
 
       batch ::= false
 
@@ -105,17 +108,67 @@ object Game:
      inline def have_++ : Long = { have += 1; have }
      inline def just_++ : Long = { just += 1; just }
 
+  object Counters:
+
+    object http4s:
+
+      import cats.effect.IO
+
+      import io.circe.generic.auto.*
+
+      import org.http4s.circe.{ jsonEncoderOf, jsonOf }
+      import org.http4s.{ EntityDecoder, EntityEncoder }
+
+      given EntityDecoder[IO, Counters] = jsonOf
+      given EntityEncoder[IO, Counters] = jsonEncoderOf
+
+////////////////////////////////////////////////////////////////////////////////
+
+  case class Savepoint(var current: Option[String] = None,
+                       var previous: Option[String] = None)
+
+  object Savepoint:
+
+    object http4s:
+
+      import cats.effect.IO
+
+      import io.circe.generic.auto.*
+
+      import org.http4s.circe.{ jsonEncoderOf, jsonOf }
+      import org.http4s.{ EntityDecoder, EntityEncoder }
+
+      given EntityDecoder[IO, Savepoint] = jsonOf
+
 ////////////////////////////////////////////////////////////////////////////////
 
   import java.util.concurrent.ConcurrentHashMap
 
-  val duals = new ConcurrentHashMap[grid.Grid.Id, Game[?, ?, ?, ?, ?, ?, ?]]()
+  val duals = new ConcurrentHashMap[grid.Grid.Id, Game[?, ?, ?, ?, ?, ?, ?, ?, ?]]()
 
 ////////////////////////////////////////////////////////////////////////////////
 
   enum Feature:
 
-    case Just
-    case Have
-    case Pisc
-    case DnD
+    case Just, Have, DnD
+
+  object Feature:
+
+    object http4s:
+
+      import scala.util.Try
+
+      import cats.effect.IO
+
+      import io.circe.generic.auto.*
+
+      import io.circe.{ KeyDecoder, KeyEncoder }
+
+      import org.http4s.circe.{ jsonEncoderOf, jsonOf }
+      import org.http4s.{ EntityDecoder, EntityEncoder }
+
+      given EntityDecoder[IO, Feature] = jsonOf
+      given EntityEncoder[IO, Feature] = jsonEncoderOf
+
+      given KeyDecoder[Feature] = KeyDecoder.instance(it => Try(Feature.valueOf(it)).toOption)
+      given KeyEncoder[Feature] = KeyEncoder[String].contramap(_.toString)

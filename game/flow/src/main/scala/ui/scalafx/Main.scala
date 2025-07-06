@@ -4,13 +4,11 @@ package flow
 package ui.scalafx
 
 import cats.effect.{ Deferred, ExitCode, IO, IOApp, Ref, Resource }
-import cats.effect.std.Dispatcher
+import cats.effect.std.{ Dispatcher, CyclicBarrier }
 
-import javafx.scene.input.KeyEvent
+import common.{ Mongo, Mutable }
 
-import org.bson.types.ObjectId
-
-import grid.Game.Feature._
+import grid.Game.Feature.*
 
 import flow.util.Read
 import util.App
@@ -19,13 +17,13 @@ import App.{ Event, apply }
 
 object Main extends IOApp:
 
-  def app(name: String, game: Game,
+  def app(name: String, game: Mutable[Game],
           eventR: Ref[IO, Deferred[IO, Event]],
-          loopR: Ref[IO, Deferred[IO, Unit]]): Resource[IO, App] =
+          loopCB: CyclicBarrier[IO]): Resource[IO, App] =
     for
       dispatcher <- Dispatcher.sequential[IO]
     yield
-      new App(dispatcher, name, game, eventR, loopR)
+      new App(dispatcher, name, game, eventR, loopCB)
 
   override def run(args: List[String]): IO[ExitCode] =
 
@@ -38,13 +36,12 @@ object Main extends IOApp:
       r <- Read(s"flow-$t-$i.txt")
       (size, clues) = r
       n <- id.get
-      game = Game(n, size, clues) //, Just, Have, Pisc
+      game = Mutable(Game(n, size, clues, Just)) // , Have
       eventD <- Deferred[IO, Event]
       eventR <- IO.ref(eventD)
-      loopD <- Deferred[IO, Unit]
-      loopR <- IO.ref(loopD)
-      _ <- app(s"flow-$t-$i", game, eventR, loopR).use { app =>
-        game(app, eventR, loopR).background.use { _ =>
+      loopCB <- CyclicBarrier[IO](2)
+      _ <- app(s"flow-$t-$i", game, eventR, loopCB).use { app =>
+        game(app, eventR, loopCB).background.use { _ =>
           IO.interruptible { app.main(Array.empty[String]) }
         }
       }
@@ -62,7 +59,7 @@ object Main extends IOApp:
       id <- IO.ref(1L)
       // i <- List(2, 3)
       // t = "br"
-      ls <- IO.ref(List(2, 3))
+      ls <- IO.ref(List(2)) // 3
       t = "cl-wc"
       // i <- List(2, 3, 4, 5)
       // i <- List(3)
@@ -76,30 +73,23 @@ object Main extends IOApp:
       ec
 
   def mongo(id: String, rest: List[String]): IO[ExitCode] =
+    val mongo = Mongo(Config().urru.mongo)
     for
-      gameOpt <- IO {
-        import scala.concurrent.Await
-        import scala.concurrent.duration._
+      gameOpt <- IO.blocking {
         import spray.json.enrichString
-        import flow.util.JsonFormats.GameJsonProtocol._
-        import org.mongodb.scala._
-        import org.mongodb.scala.model.Filters._
-        val mongoClient = MongoClient("mongodb://127.0.0.1:27017")
-        val database = mongoClient.getDatabase("urru")
-        val collection = database.getCollection("flow")
-        val observable = collection.find(equal("_id", id))
-        val doc = Await.result(observable.toFuture(), 10.seconds)
-        doc.headOption.map(_.toJson.parseJson.convertTo[Game])
+        import flow.util.JsonFormats.GameJsonProtocol.*
+        mongo.load(id, "flow").headOption.map(_.toJson.parseJson.convertTo[Game])
       }
       _ <-  gameOpt match
-              case Some(game) =>
+              case Some(_game) =>
                 for
+                  _ <- IO.unit
+                  game = Mutable(_game)
                   eventD <- Deferred[IO, Event]
                   eventR <- IO.ref(eventD)
-                  loopD <- Deferred[IO, Unit]
-                  loopR <- IO.ref(loopD)
-                  _ <- app(id, game, eventR, loopR).use { app =>
-                    game(app, eventR, loopR).background.use { _ =>
+                  loopCB <- CyclicBarrier[IO](2)
+                  _ <- app(id, game, eventR, loopCB).use { app =>
+                    game(app, eventR, loopCB).background.use { _ =>
                       IO.interruptible { app.main(Array.empty[String]) }
                     }
                   }
@@ -108,6 +98,6 @@ object Main extends IOApp:
               case _ => IO.unit
       ec <- if rest.isEmpty
             then IO(ExitCode.Success)
-            else mongo(rest.head, rest.tail)
+            else this.mongo(rest.head, rest.tail)
     yield
       ec

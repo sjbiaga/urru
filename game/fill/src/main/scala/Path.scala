@@ -3,13 +3,13 @@ package game
 package fill
 
 import scala.collection.mutable.{ HashMap, HashSet }
-import scala.collection.mutable.{ ListBuffer => MutableList, StringBuilder }
+import scala.collection.mutable.{ ListBuffer => MutableList }
 
 import common.+++
 import common.Mutable
 
-import UndoRedo._
-import grid.Tense._
+import UndoRedo.*
+import grid.Tense.*
 
 import urru.grid.Grid.Id
 import tense.intensional.Data.Doubt
@@ -25,9 +25,8 @@ case class Path(
   override val undo: Option[Undo] = None,
   override val redo: Option[Redo] = None,
   override val just: MutableList[Just[Doubt, Clue, Cell, Move]] = MutableList(),
-  override val have: HashMap[Int, HashSet[Have[Clue, Cell, Move]]] = HashMap(),
-  override protected val pisc: MutableList[StringBuilder] = MutableList(StringBuilder())
-) extends urru.Path[Path, Cell, Doubt, Clue, Move, Redo, Undo]:
+  override val have: HashMap[Int, HashSet[Have[Clue, Cell, Move]]] = HashMap()
+) extends urru.Path[Path, Cell, Doubt, Clue, Move, Undo, Redo]:
 
   private lazy val game: Game = urru.grid.Game.duals.get(dual).asInstanceOf[Game]
 
@@ -57,7 +56,7 @@ case class Path(
            Undo(id, it, in,
                 undo,
                 Mutable(Path(dual)),
-                Mutable(id.number))
+                id.number)
          }
     )
   }

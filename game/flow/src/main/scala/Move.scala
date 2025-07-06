@@ -53,3 +53,18 @@ object Move:
       case (0, -1) if 1 < at.col => Some(at.adj._3)
       case (0, 1) if at.col < size.col => Some(at.adj._4)
       case _ => None
+
+  object http4s:
+
+    import cats.effect.IO
+
+    import io.circe.generic.auto.*
+
+    import org.http4s.circe.{ jsonEncoderOf, jsonOf }
+    import org.http4s.{ EntityDecoder, EntityEncoder }
+
+    import common.grid.http4s.given
+    import Clue.http4s.given
+
+    given EntityDecoder[IO, Move] = jsonOf
+    given EntityEncoder[IO, Move] = jsonEncoderOf
