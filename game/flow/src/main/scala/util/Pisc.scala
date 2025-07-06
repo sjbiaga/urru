@@ -132,9 +132,9 @@ object sΠ:
             val nameʹ = s"""${xsʹ.mkString("_")}"""
             val (uʹ, rʹ) = s"u_$nameʹ" -> s"r_$nameʹ"
             val unconsʹ = s"list::($uʹ, $rʹ,). "
-            cases + unconsʹ + ts.map(this(_)).mkString("(", " + ", ")")
+            "(" + cases + unconsʹ + ts.map(this(_)).mkString("(", " + ", ")") + ")"
           } match
-            case it if it.nonEmpty => "(" + repl + uncons + it.mkString(" + ") + ")"
+            case it if it.nonEmpty => "(" + repl + uncons + it.mkString("(", " + ", ")") + ")"
             case _ => "()"
         case Leaf(Data(_, Parameter(_, Some(UR(ur, _, elapsed))))) =>
           val name = s"""${xs.mkString("_")}"""
@@ -160,9 +160,9 @@ object sΠ:
             val nameʹ = s"""${xsʹ.mkString("_")}"""
             val (uʹ, rʹ) = s"u_$nameʹ" -> s"r_$nameʹ"
             val unconsʹ = s"list::($uʹ, $rʹ,). "
-            cases + unconsʹ + ts.map(this(_)).mkString("(", " + ", ")")
+            "(" + cases + unconsʹ + ts.map(this(_)).mkString("(", " + ", ")") + ")"
           } match
-            case it if it.nonEmpty => "(" + repl + uncons + it.mkString(" + ") + ")"
+            case it if it.nonEmpty => "(" + repl + uncons + it.mkString("(", " + ", ")") + ")"
             case _ => s"$recverʹ($recver)."
         case _ =>
           "()"
@@ -235,7 +235,7 @@ object sΠ:
                     else
                       -1
                   } <* busyCB.await <* IO { app.prompt(3).visible = false } >>= {
-                    case 0 => 
+                    case 0 =>
                       fs.toList
                         .parTraverse { filename =>
                           IO.blocking {
