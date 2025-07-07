@@ -4,9 +4,10 @@ package flow
 package ui.scalafx
 package util
 
+import scala.concurrent.duration.*
 import scala.math.{ abs, signum => sgn }
 
-import cats.effect.{ Deferred, IO, Ref, Resource }
+import cats.effect.{ IO, Clock, Deferred, Ref, Resource }
 import cats.effect.std.{ Dispatcher, CyclicBarrier }
 
 import fs2.Stream
@@ -32,7 +33,7 @@ import scalafx.scene.layout.{ HBox, VBox }
 import scalafx.application.JFXApp3
 
 import common.grid.{ row, x, col, +, - }
-import common.Mutable
+import common.{ Mongo, Mutable }
 import Mutable.given
 
 import grid.Grid.Id
@@ -45,11 +46,11 @@ import http.GameApi.*
 import http.GameApi.http4s.given
 
 import Draw.{ colors, draw, redraw, dim }
-import Cli.{ apply, Event }
+import Cli.{ apply, Event, prompt }
 
 
 class Cli(dispatcher: Dispatcher[IO],
-          val name: String, game: Game,
+          val name: String, game: Mutable[Game],
           eventR: Ref[IO, Deferred[IO, Event]],
           loopCB: CyclicBarrier[IO])
     extends JFXApp3:
@@ -136,7 +137,7 @@ class Cli(dispatcher: Dispatcher[IO],
       width = 2*dim.grid + dim.start
       height = 2*dim.grid + dim.start
 
-  val prompt = List(Text(""), Text(""), Text(""), Text("✓ JUST"))
+  val prompt = List(Text(""), Text(""), Text(""), Text("✓ BUSY"))
 
   override def start(): Unit =
 
@@ -159,7 +160,7 @@ class Cli(dispatcher: Dispatcher[IO],
 
     board.redraw(game)
     prompt(3).visible = false
-    game(Cli.this, false, 0L)
+    game.prompt(Cli.this, false, 0L, 0L)
 
   override def stopApp(): Unit =
     dispatch(Event(None, None))
@@ -190,52 +191,107 @@ object Cli:
 
   private val flowJustTravelUri = uri"http://localhost:7103/flow/just/travel"
 
-  def consume(cli: Mutable[Cli], game: Mutable[Game],
-              kafkaCB: CyclicBarrier[IO],
+  def consume(mongo: Mongo,
+              cli: Mutable[Cli], game: Mutable[Game],
               exitR: Ref[IO, Boolean],
-              pausedR: Ref[IO, Boolean]): KafkaEvent => IO[Unit] = {
-    case Made(id, size, clues, feats*) =>
-      IO.pure(game ::= Game(id, size, clues, feats*)) >> kafkaCB.await
-    case Picked(color) =>
-      IO { game.value(color) }.void >> kafkaCB.await
-    case Moved(dir, count, elapsed) =>
-      IO {
-        var i = count
-        while i > 0 && game.move(dir)(elapsed / count)
-        do
-          i -= 1
-          if game.pending.nonEmpty
-          then
-            cli.board.redraw(game)
-          else
-            game(cli)
-      } >> kafkaCB.await
-    case Undone(count, elapsed) =>
-      IO {
-        var i = count
-        while i > 0 && game.undo()(elapsed / count)
-        do
-          i -= 1
-        cli.board.redraw(game)
-      } >> kafkaCB.await
-    case Redone(elapsed) =>
-      IO {
-        if game.redo()(elapsed)
-        then
-          if game.pending.nonEmpty
-          then
-            cli.board.redraw(game)
-          else
-            game(cli)
-      } >> kafkaCB.await
-    case Toggled =>
-      IO.pure(game.toggle) >> kafkaCB.await
-    case Exited =>
-      IO.println(0) >> exitR.set(true) >> usage >> kafkaCB.await
-    case Paused(value) =>
-      pausedR.set(value) >> kafkaCB.await
-  }
+              pausedR: Ref[IO, Boolean])
+             (eventK: KafkaEvent): IO[Unit] =
 
+    val board = cli.board
+
+    def load(savepoint: Option[String]): IO[Unit] =
+      IO.blocking {
+        savepoint
+          .flatMap {
+            mongo.load(_, "flow").headOption.map {
+              import spray.json.enrichString
+              import flow.util.JsonFormats.GameJsonProtocol.*
+              _.toJson.parseJson.convertTo[Game]
+            }
+          }
+          .tapEach { game ::= _ }
+          .foreach { board.redraw(_) }
+      }
+
+    eventK match
+
+      case Made(id, size, clues, feats*) =>
+        IO { game ::= Game(id, size, clues, feats*) }
+
+      case Picked(color) =>
+        IO { game.value(color) }.void
+
+      case Moved(dir, count, elapsed) =>
+        IO {
+          var i = count
+          while i > 0 && game.move(dir)(elapsed / count)
+          do
+            i -= 1
+            if game.pending.nonEmpty
+            then
+              board.redraw(game)
+            else
+              game(cli)
+        }
+
+      case Undone(count, elapsed) =>
+        IO {
+          var i = count
+          while i > 0 && game.undo()(elapsed / count)
+          do
+            i -= 1
+          board.redraw(game)
+        }
+
+      case Redone(elapsed) =>
+        IO {
+          if game.redo()(elapsed)
+          then
+            if game.pending.nonEmpty
+            then
+              board.redraw(game)
+            else
+              game(cli)
+        }
+
+      case Toggled =>
+        IO.pure(game.toggle)
+
+      case Exited =>
+        IO.println(0) >> exitR.set(true) >> usage
+
+      case Paused(value) =>
+        pausedR.set(value)
+
+      case Saved =>
+        import spray.json.enrichAny
+        import flow.util.JsonFormats.GameJsonProtocol.*
+        mongo.file(game.value.toJson, "flow", cli.name)
+
+      case Refreshed =>
+        val savepoint = game.savepoint
+        load(game.savepoint.current) >>
+        IO {
+          game.savepoint.current = savepoint.current
+          game.savepoint.previous = savepoint.previous
+        }
+
+      case Loaded =>
+        load(game.savepoint.previous)
+
+      case Comma =>
+        IO.blocking {
+          import spray.json.enrichAny
+          import flow.util.JsonFormats.GameJsonProtocol.*
+          game.savepoint.previous = game.savepoint.current
+          game.savepoint.current = Some(mongo.save(game.value.toJson, "flow")._2)
+        }
+
+
+  import Busy.*
+
+  enum Busy:
+    case Traveling, Versus, Loosing
 
   case class Event(key: Option[KeyEvent], drag: Option[(Boolean, (Int, (Int, Int)))])
 
@@ -253,91 +309,145 @@ object Cli:
     KeyCode.RIGHT -> (0, 1),
   )
 
-  private def usage: IO[Unit] = IO {
+  private def usage: IO[Unit] = help >> IO { exitFX() }
+
+  private def help: IO[Unit] = IO {
     println("Use letters A-N to select a color, and TAB to toggle the pair.")
     println("Use arrows ←, →, ↑, ↓ to move left, right, up, down.")
-    println("Use # to toggle axes, @ to restart game, | to pause.")
+    println("Use # to toggle axes, twice @ to restart game, | to pause.")
     println("Use keys BACKSPACE and ENTER to undo or redo.")
-    exitFX()
   }
 
-  extension(game: Game)
+  extension(game: Mutable[Game])
 
-    def apply(cli: Cli, id: Id, httpClient: HttpClient[IO],
+    private def time(cli: Cli, idleTime: Long, now: Long): Unit =
+      val elapsed = (now - idleTime) - game.startTime
+      val ms = elapsed % 1000
+      val dd = (elapsed / 1000) / 86400
+      val hh = ((elapsed / 1000) % 86400) / 3600
+      val mm = (((elapsed / 1000) % 86400) % 3600) / 60
+      val ss = ((((elapsed / 1000) % 86400) % 3600) % 60) / 1
+      cli.prompt(2).text = s"• ELAPSED:${if dd > 0 then s" $dd day${if dd > 1 then "s" else ""}" else ""} $hh:$mm:$ss.$ms"
+
+    def apply(mongo: Mongo, cli: Cli, id: Id, httpClient: HttpClient[IO],
               eventR: Ref[IO, Deferred[IO, Event]],
               loopCB: CyclicBarrier[IO],
               kafkaCB: CyclicBarrier[IO],
               exitR: Ref[IO, Boolean],
               pausedR: Ref[IO, Boolean]): IO[Unit] =
 
+      given Conversion[Id => Command, Command] = _(id)
+
+      extension (self: Command)
+        def apply(): IO[Unit] =
+          httpClient.expect[Id](POST(self, flowPlayUri)).void <* kafkaCB.await
+
       val board = cli.board
+
+      def tick(idleTime: Long): IO[Unit] =
+        for
+          _ <- IO.sleep(1.second)
+          now <- Clock[IO].monotonic.map(_.toMillis)
+          _ <- IO { runLater { time(cli, idleTime, now) } }
+          _ <- tick(idleTime)
+        yield ()
 
       def loop(idleTimeR: Ref[IO, Long],
                startedR: Ref[IO, Long],
                pendingR: Ref[IO, Boolean],
-               justCB: CyclicBarrier[IO]
+               busyR: Ref[IO, Option[Busy]],
+               busyCB: CyclicBarrier[IO]
       ): IO[Unit] =
         ( for
-            _ <-  ( if true // game.showJust.isEmpty
+            busy <- Resource.eval(busyR.get)
+            _ <-  ( if !busy.isDefined
+                    then
+                      Resource.unit[IO]
+                    else (
+                      busy.get match
+                        case Traveling =>
+                          for
+                            _ <- IO { cli.prompt(3).visible = false }
+                            grid = game.grid.toMap
+                            over = game.state.map(_.over).toSeq
+                            _ <-  ( for
+                                      client <- Stream.resource(EmberClientBuilder.default[IO].build)
+                                      req     = GET(game.value, flowJustTravelUri)
+                                      sr     <- Stream.eval(IO.pure(req))
+                                      res    <- client.stream(sr).flatMap(_.body.chunks.parseJsonStream)
+                                    yield
+                                      res
+                                  )
+                                  .map(_.toString)
+                                  .map(decode[(Int, Seq[(Doubt, Undo Either Redo, Int, Int, Int)])](_))
+                                  .map(_.right.get)
+                                  .fold(()) {
+                                    case (_, (_, Nil)) =>
+                                    case (_, (color, path)) =>
+                                      println()
+                                      path.foreach {
+                                        case (intensity, urru, depth, nesting, degree) =>
+                                          urru match
+                                            case Left(it) => print("undo"->nesting->it.move)
+                                            case Right(it) => print("redo"->nesting->it.undo.move)
+                                          // intensity.data.foreach {
+                                          //   case it if it(grid, over*) =>
+                                          //     // println(s"it=$it depth=$depth nesting=$nesting degree=$degree")
+                                          //   case _ =>
+                                          //     // assert(false)
+                                          // }
+                                        // case _ =>
+                                        //   IO.unit
+                                      }
+                                      println()
+                                  }.compile.drain
+                            _ <- IO { cli.prompt(3).visible = true }
+                            _ <- busyCB.await
+                          yield ()
+                        case Versus =>
+                          for
+                            r <- flow.util.sΠ.Versus(mongo, game, cli.name, cli.prompt(3), busyCB)
+                            _ <- IO.println(r)
+                          yield ()
+                        case Loosing =>
+                          import flow.util.sΠ.Loser
+                          val (odd, start) = game.nowStart
+                          val color = start.color
+                          val k = -color-1
+                          val i = 2*k+odd
+                          for
+                            _ <-  IO { cli.prompt(3).visible = true }
+                            _ <-  IO.blocking { Loser(mongo, cli.name, game.savepoint.current.get, game, i) }
+                            _ <-  IO { cli.prompt(3).visible = false }
+                            _ <-  busyCB.await
+                          yield ()
+                    ).background
+                  )
+            paused <- Resource.eval(pausedR.get)
+            idleTime <- Resource.eval(idleTimeR.get)
+            _ <-  ( if game.gameOver || paused
                     then
                       Resource.unit[IO]
                     else
-                      // justCB.await.background
-                      ( for
-                          _ <- IO { cli.prompt(3).visible = false }
-                          grid = game.grid.toMap
-                          over = game.state.map(_.over).toSeq
-                          _ <-  ( for
-                                    client <- Stream.resource(EmberClientBuilder.default[IO].build)
-                                    req     = GET(game, flowJustTravelUri)
-                                    sr     <- Stream.eval(IO.pure(req))
-                                    res    <- client.stream(sr).flatMap(_.body.chunks.parseJsonStream)
-                                  yield
-                                    res
-                                )
-                                .map(_.toString)
-                                .map(decode[(Int, Seq[(Doubt, Undo Either Redo, Int, Int, Int)])](_))
-                                .map(_.right.get)
-                                .fold(()) {
-                                  case (_, (_, Nil)) =>
-                                  case (_, (color, path)) =>
-                                    println()
-                                    path.foreach {
-                                      case (intensity, urru, depth, nesting, degree) =>
-                                        urru match
-                                          case Left(it) => print("undo"->nesting->it.move)
-                                          case Right(it) => print("redo"->nesting->it.undo.move)
-                                        // intensity.data.foreach {
-                                        //   case it if it(grid, over*) =>
-                                        //     // println(s"it=$it depth=$depth nesting=$nesting degree=$degree")
-                                        //   case _ =>
-                                        //     // assert(false)
-                                        // }
-                                      // case _ =>
-                                      //   IO.unit
-                                    }
-                                    println()
-                                }.compile.drain
-                          _ <- IO { cli.prompt(3).visible = true }
-                          _ <- justCB.await
-                        yield ()
-                      ).background
+                      tick(idleTime).background
                   )
           yield ()
         ).use { _ =>
           for
-            _ <-  ( if true // game.showJust.isEmpty
+            busy <- busyR.get
+            _ <-  ( if !busy.isDefined
                     then
                       IO.unit
                     else
-                      justCB.await
+                      busyCB.await
                   )
+            _ <- busyR.set(None)
 
             idleTime <- idleTimeR.get
             paused <- pausedR.get
 
             started <- startedR.get
-            ended = System.currentTimeMillis
+            ended <- Clock[IO].monotonic.map(_.toMillis)
 
             _ <- idleTimeR.update(_ + ended - started)
 
@@ -347,134 +457,152 @@ object Cli:
             Event(key, drag) <- eventD.get
 
             started <- startedR.get
-            elapsed = System.currentTimeMillis - started
+            ended <- Clock[IO].monotonic.map(_.toMillis)
+            elapsed = ended - started
 
             _ <- startedR.update(_ + elapsed)
 
             _ <-  ( if key.isEmpty && drag.isEmpty
                     then
-                      httpClient.expect[Id](POST(exit(id), flowPlayUri)).void >> kafkaCB.await
+                      exit(id)()
                     else if drag.nonEmpty
                     then
                       val (undo, (i, diff)) = drag.get
-                      httpClient.expect[Id](POST(pick(id, -i/2-1), flowPlayUri)).void >> kafkaCB.await >> {
+                      pick(id, -i/2-1)() >> {
                         val (odd, _) = game.nowStart
                         val count = abs(diff.row) + abs(diff.col)
                         ( if i%2 != odd
                           then
-                            httpClient.expect[Id](POST(toggle(id), flowPlayUri)).void >> kafkaCB.await
+                            toggle(id)()
                           else
                             IO.unit
                         ) >>
                         ( if undo
                           then
-                            httpClient.expect[Id](POST(Command.undo(id, count, elapsed), flowPlayUri)).void >> kafkaCB.await
+                            Command.undo(id, count, elapsed)()
                           else
                             val dir = (sgn(diff.row), sgn(diff.col))
-                            httpClient.expect[Id](POST(move(id, dir, count, elapsed), flowPlayUri)).void >> kafkaCB.await
+                            move(id, dir, count, elapsed)()
                         )
                       }
-                    else if key.get.getCode() eq KeyCode.ESCAPE
-                    then
-                      httpClient.expect[Id](POST(exit(id), flowPlayUri)).void >> kafkaCB.await
-                    else if paused
-                    then
-                      idleTimeR.update(_ + elapsed) >>
-                      ( if key.get.getCode() eq KeyCode.BACK_SLASH
+                    else
+                      val keyCode = key.get.getCode()
+
+                      if keyCode eq KeyCode.ESCAPE
+                      then
+                        exit(id)()
+                      else if paused
+                      then
+                        idleTimeR.update(_ + elapsed) >>
+                        ( if keyCode eq KeyCode.BACK_SLASH
+                          then
+                            pause(id, false)()
+                          else
+                            IO.unit
+                        )
+
+                      else if letters.contains(keyCode)
+                      then
+                        val i = letters.indexOf(keyCode)
+                        if i < game.state.size / 2
                         then
-                         httpClient.expect[Id](POST(pause(id, false), flowPlayUri)).void >> kafkaCB.await
+                          val (_, start) = game.nowStart
+                          if start.color == -i-1
+                          then
+                            toggle(id)()
+                          else
+                            pick(id, -i-1)()
                         else
                           IO.unit
-                      )
 
-                    else if letters.contains(key.get.getCode())
-                    then
-                      val i = letters.indexOf(key.get.getCode())
-                      if i < game.state.size / 2
+                      else if arrows.keySet.contains(keyCode)
                       then
-                        val (_, start) = game.nowStart
-                        if start.color == -i-1
+                        val dir = arrows(keyCode)
+                        Command.move(id, dir, 1, elapsed)()
+
+                      else if keyCode eq KeyCode.DIGIT3
+                      then
+                        IO {
+                          game.showAxes = !game.showAxes
+                          board.redraw(game)
+                        }
+
+                      else if keyCode eq KeyCode.DIGIT2
+                      then
+                        for
+                          _ <- idleTimeR.set(0L)
+                          started <- Clock[IO].monotonic.map(_.toMillis)
+                          _ <- startedR.set(started)
+                          _ <- IO {
+                                 game.restart
+                                 game.startTime = started
+                                 board.redraw(game)
+                               }
+                        yield ()
+
+                      else if keyCode eq KeyCode.BACK_SLASH
+                      then
+                        pause(id, true)()
+
+                      else if keyCode eq KeyCode.F1
+                      then
+                        help
+
+                      else if keyCode eq KeyCode.F2
+                      then
+                        save(id)()
+
+                      else if keyCode eq KeyCode.F5
+                      then
+                        refresh(id)()
+
+                      else if keyCode eq KeyCode.F9
+                      then
+                        load(id)()
+
+                      else if keyCode eq KeyCode.COMMA
+                      then
+                        comma(id)()
+
+                      else if keyCode eq KeyCode.PERIOD
+                      then
+                        if game.savepoint.current.isDefined
                         then
-                          httpClient.expect[Id](POST(toggle(id), flowPlayUri)).void >> kafkaCB.await
+                          busyR.set(Some(Loosing))
                         else
-                          httpClient.expect[Id](POST(pick(id, -i-1), flowPlayUri)).void >> kafkaCB.await
+                          IO.unit
+
+                      else if keyCode eq KeyCode.DIGIT7
+                      then
+                        if game.savepoint.current.isDefined
+                        then
+                          busyR.set(Some(Versus))
+                        else
+                          IO.unit
+
+                      else if keyCode eq KeyCode.DIGIT8
+                      then
+                        busyR.set(Some(Traveling))
+
+                      else if keyCode eq KeyCode.BACK_SPACE
+                      then
+                        Command.undo(id, 1, elapsed)()
+
+                      else if keyCode eq KeyCode.ENTER
+                      then
+                        Command.redo(id, elapsed)()
+
+                      else if keyCode eq KeyCode.TAB
+                      then
+                        toggle(id)()
+
                       else
                         IO.unit
 
-                    else if arrows.keySet.contains(key.get.getCode())
-                    then
-                      val dir = arrows(key.get.getCode())
-                      httpClient.expect[Id](POST(Command.move(id, dir, 1, elapsed), flowPlayUri)).void >> kafkaCB.await
-
-                    else if key.get.getCode() eq KeyCode.DIGIT3
-                    then
-                      IO {
-                        game.showAxes = !game.showAxes
-                        board.redraw(game)
-                      }
-                    else if key.get.getCode() eq KeyCode.DIGIT2
-                    then
-                      for
-                        _ <- idleTimeR.set(0L)
-                        _ <- startedR.set(System.currentTimeMillis)
-                        started <- startedR.get
-                        _ <- IO {
-                          game.restart
-                          game.startTime = started
-                          board.redraw(game)
-                        }
-                      yield ()
-
-                    else if key.get.getCode() eq KeyCode.BACK_SLASH
-                    then
-                      httpClient.expect[Id](POST(pause(id, true), flowPlayUri)).void >> kafkaCB.await
-
-                    else if key.get.getCode() eq KeyCode.COMMA
-                    then
-                      for
-                        cwd <- Files[IO].currentWorkingDirectory
-                        s = Stream.emit[IO, String] {
-                          import scala.concurrent.Await
-                          import scala.concurrent.duration.*
-                          import spray.json.enrichAny
-                          import spray.json.JsString
-                          import flow.util.JsonFormats.GameJsonProtocol.*
-                          import org.bson.types.ObjectId
-                          import org.mongodb.scala.*
-                          val mongoClient = MongoClient("mongodb://10.192.168.184:27017")
-                          val database = mongoClient.getDatabase("urru")
-                          val collection = database.getCollection("flow")
-                          var json = game.toJson
-                          var jsonObj = json.asJsObject
-                          val jsonId = JsString(ObjectId().toString)
-                          jsonObj = jsonObj.copy(fields = jsonObj.fields.updated("_id", jsonId))
-                          json = jsonObj.toJson
-                          val observable = collection.insertOne(Document(json.toString))
-                          Await.result(observable.toFuture(), 10.seconds)
-                          json.prettyPrint
-                        }
-                        name = common.Mongo.uuid(cli.name)
-                        _ <- s.through(Files[IO].writeUtf8Lines(cwd / (name + ".json"))).compile.drain
-                      yield ()
-
-                    else if key.get.getCode() eq KeyCode.BACK_SPACE
-                    then
-                      httpClient.expect[Id](POST(Command.undo(id, 1, elapsed), flowPlayUri)).void >> kafkaCB.await
-
-                    else if key.get.getCode() eq KeyCode.ENTER
-                    then
-                      httpClient.expect[Id](POST(Command.redo(id, elapsed), flowPlayUri)).void >> kafkaCB.await
-
-                    else if key.get.getCode() eq KeyCode.TAB
-                    then
-                      httpClient.expect[Id](POST(toggle(id), flowPlayUri)).void >> kafkaCB.await
-
-                    else
-                      IO.unit
-
                   )
 
-            _ <- IO { game(cli, paused, idleTime) } // prompt
+            now <- Clock[IO].monotonic.map(_.toMillis)
+            _ <- IO { prompt(cli, paused, idleTime, now) }
           yield ()
         } >> {
           for
@@ -487,19 +615,21 @@ object Cli:
                     then
                       IO.unit
                     else
-                      loop(idleTimeR, startedR, pendingR, justCB)
+                      loop(idleTimeR, startedR, pendingR, busyR, busyCB)
                   )
           yield ()
         }
       for
         idleTimeR <- IO.ref(0L)
         idleTimeR <- IO.ref(0L)
-        startedR <- IO.ref(System.currentTimeMillis)
+        started <- Clock[IO].monotonic.map(_.toMillis)
+        startedR <- IO.ref(started)
         pendingR <- IO.ref(game.pending.nonEmpty)
         justCB <- CyclicBarrier[IO](2)
-        started <- startedR.get
+        busyR <- IO.ref(None)
+        busyCB <- CyclicBarrier[IO](2)
         _ <- IO { game.startTime = started }
-        _ <- loop(idleTimeR, startedR, pendingR, justCB)
+        _ <- loop(idleTimeR, startedR, pendingR, busyR, busyCB)
       yield ()
 
     /**
@@ -509,12 +639,14 @@ object Cli:
     def apply(cli: Cli): Unit =
       val (odd, start) = game.nowStart
       val color = start.color
-      val i = -color-1
-      if game.state(2*i+odd).over
+      val k = -color-1
+      val i = 2*k+odd
+      val item = game.state(i)
+      if item.over
       then
         cli.board.redraw(game)
       else
-        val play = game.state(2*i+odd).play
+        val play = item.play
         val from = play(play.size-2)
         val to = play(play.size-1)
         cli.board.draw(from, to, color, play.size == 2, true, false) // tip
@@ -523,7 +655,7 @@ object Cli:
           val to = play(play.size-3)
           cli.board.draw(to, from, color, play.size == 3, false, false) // previous
 
-    def apply(cli: Cli, paused: Boolean, idleTime: Long): Unit = runLater {
+    def prompt(cli: Cli, paused: Boolean, idleTime: Long, now: Long): Unit = runLater {
 
       val pending = cli.pending.getChildren()
       for
@@ -542,17 +674,21 @@ object Cli:
       val size = game.size
       val (odd, start) = game.nowStart
       val color = start.color
-      val i = -color-1
+      val k = -color-1
+      val i = 2*k+odd
+      val j = 2*k+1-odd
+      val item = game.state(i)
+      val itemʹ = game.state(j)
       val point = game.tip
 
       val prompt = cli.prompt
 
       prompt(0).text = s"• POINT AT ${point.row} x ${point.col}" +
-        ( if game.state(2*i+odd).over
+        ( if item.over
           then
             " (FLOW)"
           else
-            if game.state(2*i+odd).play.size > 1 || game.state(2*i+1-odd).play.size > 1
+            if item.play.size > 1 || itemʹ.play.size > 1
             then
               " [OPEN]"
             else
@@ -579,13 +715,8 @@ object Cli:
         if paused
         then
           prompt(2).text = "• PAUSED"
-        else
-          val elapsed = (System.currentTimeMillis - idleTime) - game.startTime
-          val ms = elapsed % 1000
-          val dd = (elapsed / 1000) / 86400
-          val hh = ((elapsed / 1000) % 86400) / 3600
-          val mm = (((elapsed / 1000) % 86400) % 3600) / 60
-          val ss = ((((elapsed / 1000) % 86400) % 3600) % 60) / 1
-          prompt(2).text = s"• ELAPSED:${if dd > 0 then s" $dd day${if dd > 1 then "s" else ""}" else ""} $hh:$mm:$ss.$ms"
+        else if now > 0
+        then
+          time(cli, idleTime, now)
 
     }

@@ -84,11 +84,35 @@ class GameApi(kafkaPublisher: KafkaPublisher[Id, KafkaEvent]) extends Http4sDsl[
             res  <- Ok(id)
           yield
             res
+        case  save(id) =>
+          for
+            _    <- kafkaPublisher.send("flow", id, Saved)
+            res  <- Ok(id)
+          yield
+            res
+        case  refresh(id) =>
+          for
+            _    <- kafkaPublisher.send("flow", id, Refreshed)
+            res  <- Ok(id)
+          yield
+            res
+        case  load(id) =>
+          for
+            _    <- kafkaPublisher.send("flow", id, Loaded)
+            res  <- Ok(id)
+          yield
+            res
+        case  comma(id) =>
+          for
+            _    <- kafkaPublisher.send("flow", id, Comma)
+            res  <- Ok(id)
+          yield
+            res
       }
     case req @ GET -> Root / "flow" / "just" / "travel" =>
       req.decode[IO, Game] { game =>
         grid.Game.duals.put(game.id, game)
-        val io = Ok(game.Just.travel)
+        val io = Ok(game.just.travel)
         IO.println(-1) >> io
       }
   }
@@ -107,6 +131,10 @@ object GameApi:
     case toggle(id: Id)
     case pause(id: Id, value: Boolean)
     case exit(id: Id)
+    case save(id: Id)
+    case refresh(id: Id)
+    case load(id: Id)
+    case comma(id: Id)
 
   object http4s:
 

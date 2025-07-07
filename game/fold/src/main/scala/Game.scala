@@ -19,6 +19,7 @@ import tense.intensional.Data.Doubt
 
 import urru.grid.Grid.Id
 import urru.grid.Game.{ Counters, Feature, Savepoint }
+import Feature.*
 import Game.*
 
 
@@ -110,7 +111,7 @@ case class Game(
     }
     then
 
-      if mutable
+      if mutable && Pending
       then
 
         if pending.exists { (j, m) => j == i || m.contains(i) }
@@ -123,6 +124,10 @@ case class Game(
         else
           (-1, null) +=: pending
 
+      else if !Pending
+      then
+        (-1, null) +=: pending
+
       Some(pre.toMap)
 
     else
@@ -134,7 +139,7 @@ case class Game(
   import Data.*
 
   private def apply(): Move => Doubt = {
-    case _ if !features(Feature.Just) =>
+    case _ if !Just =>
       Doubt(Set.empty)
 
     case it =>
@@ -206,10 +211,10 @@ case class Game(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-  object Just:
+  object just:
 
     def travel: Stream[IO, (Int, Seq[(Doubt, Undo Either Redo, Int, Int, Int)])] =
-      if !features(Feature.Just)
+      if !Just
       then
         Stream.empty
       else

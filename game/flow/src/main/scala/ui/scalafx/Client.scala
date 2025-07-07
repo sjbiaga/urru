@@ -21,7 +21,7 @@ import org.http4s.client.dsl.io.*
 import org.typelevel.log4cats.LoggerFactory
 import org.typelevel.log4cats.slf4j.Slf4jFactory
 
-import common.Mutable
+import common.{ Mongo, Mutable }
 import grid.Game.Feature.*
 
 import grid.Grid.Id
@@ -50,7 +50,7 @@ object Client extends IOApp:
       .withBootstrapServers("localhost:9092")
       .withGroupId("gameflow")
 
-  def cli(name: String, game: Game,
+  def cli(name: String, game: Mutable[Game],
           eventR: Ref[IO, Deferred[IO, Event]],
           loopCB: CyclicBarrier[IO]): Resource[IO, Cli] =
     for
@@ -76,24 +76,25 @@ object Client extends IOApp:
       _ <- EmberClientBuilder.default[IO].build.use { httpClient =>
         IO.println(1) >>
         httpClient
-          .expect[Id](POST(make(n, size, clues, Just), flowPlayUri))
+          .expect[Id](POST(make(n, size, clues, Just, Pending), flowPlayUri))
           .flatMap { id =>
             IO.println(2) >>
             KafkaConsumer.resource(consumerSettings).use { consumer =>
+              val mongo = Mongo(Config().urru.mongo)
               val game: Mutable[Game] = Mutable(null)
               val client: Mutable[Cli] = Mutable(null)
               IO.println(3) >>
               consumer.subscribeTo("flow") >>
               consumer
                 .stream
-                .evalMap { it => Cli.consume(client, game, kafkaCB, exitR, pausedR)(it.record.value) }
+                .evalMap { it => Cli.consume(mongo, client, game, exitR, pausedR)(it.record.value) <* kafkaCB.await }
                 .compile.drain
                 .background.use { _ =>
-                  kafkaCB.await >>
+                  kafkaCB.await *>
                   IO.println(4) >>
-                  cli(s"flow-$t-$i", game.value, eventR, loopCB).use { cli =>
-                    IO(client ::= cli) >>
-                    game.value(cli, id, httpClient, eventR, loopCB, kafkaCB, exitR, pausedR)
+                  cli(s"flow-$t-$i", game, eventR, loopCB).use { cli =>
+                    IO { client ::= cli } >>
+                    game(mongo, cli, id, httpClient, eventR, loopCB, kafkaCB, exitR, pausedR)
                       .background.use { _ =>
                         IO.interruptible { cli.main(Array.empty[String]) }
                       }
@@ -116,7 +117,7 @@ object Client extends IOApp:
       id <- IO.ref(1L)
       // i <- List(2, 3)
       // t = "br"
-      ls <- IO.ref(List(2, 3))
+      ls <- IO.ref(List(2)) // 3
       t = "cl-wc"
       // i <- List(2, 3, 4, 5)
       // i <- List(3)

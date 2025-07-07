@@ -48,7 +48,7 @@ abstract trait Path[
   val just: MutableList[Just[D, K, C, M]]
   val have: HashMap[Int, HashSet[Have[K, C, M]]]
 
-  given Conversion[Feature, Boolean] = duals.get(dual).features.contains(_)
+  protected given Conversion[Feature, Boolean] = duals.get(dual).features(_)
 
   protected def apply(): B // fresh
 

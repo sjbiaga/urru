@@ -36,7 +36,7 @@ object Main extends IOApp:
       r <- Read(s"fill-$t$k-$i.txt")
       (size, clues) = r
       n <- id.get
-      game = Mutable(Game(n, size, clues)) //, Just, Have
+      game = Mutable(Game(n, size, clues, Pending)) //, Just, Have, Pending
       eventD <- Deferred[IO, Event]
       eventR <- IO.ref(eventD)
       loopCB <- CyclicBarrier[IO](2)

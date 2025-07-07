@@ -21,6 +21,7 @@ import tense.intensional.Data.Doubt
 
 import grid.Grid.Id
 import grid.Game.{ Counters, Feature, Savepoint }
+import Feature.*
 import Game.*
 
 
@@ -142,7 +143,7 @@ case class Game(
     if pre ne null
     then
 
-      if mutable
+      if mutable && Pending
       then
 
         if pending.exists { (j, m) => j == i0 || m.contains(i0) }
@@ -155,6 +156,10 @@ case class Game(
         else
           (-1, null) +=: pending
 
+      else if !Pending
+      then
+        (-1, null) +=: pending
+
       Some(pre)
 
     else
@@ -166,7 +171,7 @@ case class Game(
   import Data.*
 
   private def apply(): Move => Doubt = {
-    case _ if !features(Feature.Just) =>
+    case _ if !Just =>
       Doubt(Set.empty)
 
     case it @ Move(odd, _, by, _, _) =>
@@ -240,16 +245,19 @@ case class Game(
 
   override def move(it: Move) = { in =>
     val Move(odd, _, by, _, _) = it
-    val i = -it.color-1
-    val item = state(2*i+odd)
+    val k = -it.color-1
+    val i = 2*k+odd
+    val j = 2*k+1-odd
+    val item = state(i)
+    val itemʹ = state(j)
 
     grid ++= it(grid, crosses)
 
-    val open = state(2*i+1-odd).play.last != by
+    val open = itemʹ.play.last != by
 
     if !open
     then
-      state(2*i+1-odd).over = !open
+      itemʹ.over = !open
 
     item.path(0) = item.path(0)(it)(in)
     item.play = item.play :+ by
@@ -291,10 +299,10 @@ case class Game(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-  object Just:
+  object just:
 
     def travel: Stream[IO, (Int, Seq[(Doubt, Undo Either Redo, Int, Int, Int)])] =
-      if !features(Feature.Just)
+      if !Just
       then
         Stream.empty
       else

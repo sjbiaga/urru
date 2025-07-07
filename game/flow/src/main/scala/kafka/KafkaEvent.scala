@@ -18,3 +18,7 @@ enum KafkaEvent:
   case Toggled
   case Paused(value: Boolean)
   case Exited
+  case Saved
+  case Refreshed
+  case Loaded
+  case Comma

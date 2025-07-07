@@ -169,10 +169,11 @@ object sΠ:
 
   object Versus:
 
-    def apply(mongo: Mongo, app: App, busyCB: CyclicBarrier[IO]): IO[String] =
-      val game: Game = app.game
+    import scalafx.scene.text.Text
+
+    def apply(mongo: Mongo, game: Game, name: String, prompt: Text, busyCB: CyclicBarrier[IO]): IO[String] =
       for
-        _ <-  IO { app.prompt(3).visible = true }
+        _ <-  IO { prompt.visible = true }
         p <-  IO {
                 import flow.util.sΠ.Player
 
@@ -198,7 +199,7 @@ object sΠ:
                 val k = -color-1
                 val i = 2*k+odd
 
-                mongo.item(s"flow_${app.name}_looser_vs_player_loosing",
+                mongo.item(s"flow_${name}_looser_vs_player_loosing",
                            game.savepoint.current.get, i)
                   .map(_.toJson.parseJson.convertTo[(String, Tree[Data])]._2)
                   .map(Loser(_))
@@ -209,7 +210,7 @@ object sΠ:
                 ls.foldLeft((0, Nil: Seq[String])) {
                   case ((0, fs), l) =>
                     import flow.util.sΠ
-                    val filename = Mongo.uuid(s"flow_${app.name}_loser_vs_player")
+                    val filename = Mongo.uuid(s"flow_${name}_loser_vs_player")
                     if 0 == sΠ(l, p, filename).!
                     then 0 -> (fs :+ filename)
                     else -1 -> Nil
@@ -219,7 +220,7 @@ object sΠ:
         (_, fs) = xs
         r <- (  if fs.isEmpty
                 then
-                  busyCB.await >> IO { app.prompt(3).visible = false } >> IO.pure("vacuous")
+                  busyCB.await >> IO { prompt.visible = false } >> IO.pure("vacuous")
                 else
                   import cats.instances.list.*
                   import cats.syntax.flatMap.*
@@ -234,7 +235,7 @@ object sΠ:
                       0
                     else
                       -1
-                  } <* busyCB.await <* IO { app.prompt(3).visible = false } >>= {
+                  } <* busyCB.await <* IO { prompt.visible = false } >>= {
                     case 0 =>
                       fs.toList
                         .parTraverse { filename =>

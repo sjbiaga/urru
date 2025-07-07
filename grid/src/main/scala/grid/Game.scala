@@ -38,6 +38,8 @@ abstract trait Game[T,
 
   val features: Map[Feature, Boolean]
 
+  protected given Conversion[Feature, Boolean] = features(_)
+
   final def clues_hints = (clues -- hints) ++ (hints -- clues)
 
   protected def full: Boolean =
@@ -139,6 +141,7 @@ object Game:
       import org.http4s.{ EntityDecoder, EntityEncoder }
 
       given EntityDecoder[IO, Savepoint] = jsonOf
+      given EntityEncoder[IO, Feature] = jsonEncoderOf
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -150,7 +153,7 @@ object Game:
 
   enum Feature:
 
-    case Just, Have, DnD
+    case DnD, Just, Have, Pending
 
   object Feature:
 

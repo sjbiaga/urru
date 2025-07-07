@@ -7,10 +7,10 @@ package util
 import scala.concurrent.duration.*
 import scala.math.{ abs, signum => sgn }
 
-import cats.effect.{ Clock, Deferred, IO, Ref, Resource }
+import cats.effect.{ IO, Clock, Deferred, Ref, Resource }
 import cats.effect.std.{ Dispatcher, CyclicBarrier }
 
-import scalafx.application.Platform.{ exit, runLater }
+import scalafx.application.Platform.{ exit => exitFX, runLater }
 import scalafx.scene.Scene
 import scalafx.scene.canvas.Canvas
 import javafx.scene.input.{ KeyCode, KeyEvent, MouseEvent }
@@ -25,14 +25,13 @@ import common.{ Mongo, Mutable }
 import Mutable.given
 
 import Clue.*
-import UndoRedo.*
 
 import Draw.{ colors, draw, redraw, dim }
-import App.{ apply, Event }
+import App.{ apply, Event, prompt }
 
 
 class App(dispatcher: Dispatcher[IO],
-          val name: String, val game: Mutable[Game],
+          val name: String, game: Mutable[Game],
           eventR: Ref[IO, Deferred[IO, Event]],
           loopCB: CyclicBarrier[IO])
     extends JFXApp3:
@@ -142,7 +141,7 @@ class App(dispatcher: Dispatcher[IO],
 
     board.redraw(game)
     prompt(3).visible = false
-    game(App.this, false, 0L, 0L)
+    game.prompt(App.this, false, 0L, 0L)
 
   override def stopApp(): Unit =
     dispatch(Event(None, None))
@@ -171,6 +170,13 @@ object App:
     KeyCode.RIGHT -> (0, 1),
   )
 
+  private def usage: IO[Unit] = IO {
+    println("Use letters A-N to select a color, and TAB to toggle the pair.")
+    println("Use arrows ←, →, ↑, ↓ to move left, right, up, down.")
+    println("Use # to toggle axes, twice @ to restart game, | to pause.")
+    println("Use keys BACKSPACE and ENTER to undo or redo.")
+  }
+
   extension(game: Mutable[Game])
 
     private def time(app: App, idleTime: Long, now: Long): Unit =
@@ -189,15 +195,6 @@ object App:
       val mongo = Mongo(Config().urru.mongo)
 
       val board = app.board
-
-      def usage: IO[Unit] = help >> IO { exit() }
-
-      def help: IO[Unit] = IO {
-        println("Use letters A-N to select a color, and TAB to toggle the pair.")
-        println("Use arrows ←, →, ↑, ↓ to move left, right, up, down.")
-        println("Use # to toggle axes, twice @ to restart game, | to pause.")
-        println("Use keys BACKSPACE and ENTER to undo or redo.")
-      }
 
       def load(savepoint: Option[String]): IO[Unit] =
         IO.blocking {
@@ -267,7 +264,7 @@ object App:
                           // yield ()
                         case Versus =>
                           for
-                            r <- flow.util.sΠ.Versus(mongo, app, busyCB)
+                            r <- flow.util.sΠ.Versus(mongo, game, app.name, app.prompt(3), busyCB)
                             _ <- IO.println(r)
                           yield ()
                         case Loosing =>
@@ -321,14 +318,12 @@ object App:
             ended <- Clock[IO].monotonic.map(_.toMillis)
             elapsed = ended - started
 
-            _ <- IO.println(key->drag)
-            _ <- IO.println(game.savepoint)
-
             _ <- startedR.update(_ + elapsed)
 
             _ <-  ( if key.isEmpty && drag.isEmpty
                     then
                       exitR.set(true) >> usage
+
                     else if drag.nonEmpty
                     then
                       IO {
@@ -354,6 +349,7 @@ object App:
                             else
                               game(app)
                       }
+
                     else
                       val keyCode = key.get.getCode()
 
@@ -426,7 +422,7 @@ object App:
 
                       else if keyCode eq KeyCode.F1
                       then
-                        help
+                        usage
 
                       else if keyCode eq KeyCode.F2
                       then
@@ -506,7 +502,7 @@ object App:
                   )
 
             now <- Clock[IO].monotonic.map(_.toMillis)
-            _ <- IO { game(app, paused, idleTime, now) } // prompt
+            _ <- IO { prompt(app, paused, idleTime, now) }
           yield ()
         } >> {
           for
@@ -517,7 +513,7 @@ object App:
             exit <- exitR.get
             _ <-  ( if exit
                     then
-                      IO.unit
+                      IO { exitFX() }
                     else
                       loop(idleTimeR, startedR, exitR, pendingR, pausedR, busyR, busyCB)
                   )
@@ -543,12 +539,14 @@ object App:
     def apply(app: App): Unit =
       val (odd, start) = game.nowStart
       val color = start.color
-      val i = -color-1
-      if game.state(2*i+odd).over
+      val k = -color-1
+      val i = 2*k+odd
+      val item = game.state(i)
+      if item.over
       then
         app.board.redraw(game)
       else
-        val play = game.state(2*i+odd).play
+        val play = item.play
         val from = play(play.size-2)
         val to = play(play.size-1)
         app.board.draw(from, to, color, play.size == 2, true, false) // tip
@@ -557,7 +555,7 @@ object App:
           val to = play(play.size-3)
           app.board.draw(to, from, color, play.size == 3, false, false) // previous
 
-    def apply(app: App, paused: Boolean, idleTime: Long, now: Long): Unit = runLater {
+    def prompt(app: App, paused: Boolean, idleTime: Long, now: Long): Unit = runLater {
 
       val pending = app.pending.getChildren()
       for
@@ -576,17 +574,21 @@ object App:
       val size = game.size
       val (odd, start) = game.nowStart
       val color = start.color
-      val i = -color-1
+      val k = -color-1
+      val i = 2*k+odd
+      val j = 2*k+1-odd
+      val item = game.state(i)
+      val itemʹ = game.state(j)
       val point = game.tip
 
       val prompt = app.prompt
 
       prompt(0).text = s"• POINT AT ${point.row} x ${point.col}" +
-        ( if game.state(2*i+odd).over
+        ( if item.over
           then
             " (FLOW)"
           else
-            if game.state(2*i+odd).play.size > 1 || game.state(2*i+1-odd).play.size > 1
+            if item.play.size > 1 || itemʹ.play.size > 1
             then
               " [OPEN]"
             else

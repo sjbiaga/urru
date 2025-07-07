@@ -47,9 +47,6 @@ case class Path(
   override def apply(it: Move) = { in =>
     super.apply(it)(in)
 
-    val Move(odd, at, by, _, _) = it
-    val i = -it.color-1
-
     val id = Id(game.counters.just_++)
 
     Path(dual,
