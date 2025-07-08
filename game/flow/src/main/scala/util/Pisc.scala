@@ -58,17 +58,17 @@ object sΠ:
   object Loser:
 
     def apply(mongo: Mongo, name: String, savepoint: String, game: Game, i: Int): Unit =
-        import spray.json.enrichAny
-        import common.Tree.Implicits.TreeJsonProtocolʹ.*
-        import flow.util.Versus.Data.DataJsonProtocol.*
+      import spray.json.enrichAny
+      import common.Tree.Implicits.TreeJsonProtocolʹ.*
+      import flow.util.Versus.Data.DataJsonProtocol.*
 
-        val tree = Visitor.`Loser Versus Player`(game, i)
+      val tree = Visitor.`Loser Versus Player`(game, i)
 
-        tree.map(Validate(_)()).map(assert)
+      assert(Validate(tree)())
 
-        tree.map(savepoint -> _).foreach { treeʹ =>
-          mongo.save(treeʹ.toJson, s"flow_${name}_looser_vs_player_loosing")
-        }
+      val treeʹ = savepoint -> tree
+
+      mongo.save(treeʹ.toJson, s"flow_${name}_looser_vs_player_loosing")
 
     def apply(tree: Tree[Data])(using xs: List[Int] = Nil): String =
       tree match
@@ -183,8 +183,8 @@ object sΠ:
                 val i = 2*k+odd
 
                 val tree = flow.util.Visitor.`Loser Versus Player`(game, i)
-                tree.map(Validate(_)()).map(assert)
-                tree.map(Player(_)).get
+                assert(Validate(tree)())
+                Player(tree)
               }
         ls <- IO.blocking {
                 import spray.json.enrichString

@@ -29,48 +29,28 @@ object Main extends IOApp:
 
     if args.isEmpty then file else mongo(args.head, args.tail)
 
-  def loop(id: Ref[IO, Long], ls: Ref[IO, List[Int]], t: String): IO[ExitCode] =
-    for
-      l <- ls.get
-      i = l.head
-      r <- Read(s"flow-$t-$i.txt")
-      (size, clues) = r
-      n <- id.get
-      game = Mutable(Game(n, size, clues, Just, Just /*Pending*/)) // , Have, Pending
-      eventD <- Deferred[IO, Event]
-      eventR <- IO.ref(eventD)
-      loopCB <- CyclicBarrier[IO](2)
-      _ <- app(s"flow-$t-$i", game, eventR, loopCB).use { app =>
-        game(app, eventR, loopCB).background.use { _ =>
-          IO.interruptible { app.main(Array.empty[String]) }
+  def loop(id: Long, ls: List[Int], t: String): IO[ExitCode] =
+    if ls.isEmpty
+    then IO(ExitCode.Success)
+    else
+      val i = ls.head
+      for
+        (size, clues) <- Read(s"flow-$t-$i.txt")
+        game = Mutable(Game(id, size, clues, Just, Just /*Pending*/)) // , Have, Pending
+        eventD <- Deferred[IO, Event]
+        eventR <- IO.ref(eventD)
+        loopCB <- CyclicBarrier[IO](2)
+        _ <- app(s"flow-$t-$i", game, eventR, loopCB).use { app =>
+          game(app, eventR, loopCB).background.use { _ =>
+            IO.interruptible { app.main(Array.empty[String]) }
+          }
         }
-      }
-      _ <- id.update(_ + 1)
-      _ <- ls.update(_.tail)
-      l <- ls.get
-      ec <- if l.isEmpty
-            then IO(ExitCode.Success)
-            else loop(id, ls, t)
-    yield
-      ec
+        _ <- loop(id + 1, ls.tail, t)
+      yield
+        ExitCode.Error
 
   def file: IO[ExitCode] =
-    for
-      id <- IO.ref(1L)
-      // i <- List(2, 3)
-      // t = "br"
-      ls <- IO.ref(List(2)) // 3
-      t = "cl-wc"
-      // i <- List(2, 3, 4, 5)
-      // i <- List(3)
-      // t = "cl"
-      //ls <- IO.ref(List(1))
-      //t = "weekly-htb"
-      // ls <- IO.ref(List(11))
-      // t = "weekly-p"
-      ec <- loop(id, ls, t)
-    yield
-      ec
+    loop(1L, List(2), "cl-wc")
 
   def mongo(id: String, rest: List[String]): IO[ExitCode] =
     val mongo = Mongo(Config().urru.mongo)

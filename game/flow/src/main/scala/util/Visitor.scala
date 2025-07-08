@@ -5,7 +5,7 @@ package util
 
 import scala.math.abs
 
-import cats.Eval
+import cats.{ Eval, Id }
 import cats.data.State
 import cats.syntax.flatMap.*
 
@@ -15,6 +15,7 @@ import common.Tree
 import UndoRedo.*
 
 import Tree.*
+import Tree.Implicits.*
 import Tree.given
 
 
@@ -29,9 +30,9 @@ object Visitor:
       REDO -> 0
     )
 
-    def apply(game: Game, i: Int): Option[Int] =
+    def apply(game: Game, i: Int): Int =
 
-      new Visitor[Option, Int | Null] {
+      new base.Visitor[Game, Path, Undo, Redo, Id, Tree[Int | Null]] {
 
         override def apply(self: Visited,
                            depth: Int, phase: Phase, strategy: Strategy, detail: Option[Any]): Boolean =
@@ -44,44 +45,43 @@ object Visitor:
 
         override def game(self: Game,
                           transition: (Phase, Phase), strategies: Map[Entity, Strategy],
-                          depth: Int, detail: Option[Any]): Option[Tree[Int | Null]] =
+                          depth: Int, detail: Option[Any]): Tree[Int | Null] =
           detail match
             case Some(_) =>
-              Some(GAME -> transition -> 0)
+              GAME -> transition -> 0
             case _ =>
-              Some(GAME -> transition)
+              GAME -> transition
 
         override def path(self: Path,
                           transition: (Phase, Phase), strategies: Map[Entity, Strategy],
-                          depth: Int, detail: Option[Any]): Option[Tree[Int | Null]] =
+                          depth: Int, detail: Option[Any]): Tree[Int | Null] =
           detail match
             case Some(_) =>
-              Some(PATH -> transition -> 0)
+              PATH -> transition -> 0
             case _ =>
-              Some(PATH -> transition)
+              PATH -> transition
 
         override def undo(self: Undo,
                           transition: (Phase, Phase), strategies: Map[Entity, Strategy],
-                          depth: Int, detail: Option[Any]): Option[Tree[Int | Null]] =
+                          depth: Int, detail: Option[Any]): Tree[Int | Null] =
           transition match
             case (_, LOOP) =>
-              Some(UNDO -> transition -> 1)
+              UNDO -> transition -> 1
             case _ =>
-              Some(UNDO -> transition)
+              UNDO -> transition
 
         override def redo(self: Redo,
                           transition: (Phase, Phase), strategies: Map[Entity, Strategy],
-                          depth: Int, detail: Option[Any]): Option[Tree[Int | Null]] =
+                          depth: Int, detail: Option[Any]): Tree[Int | Null] =
           transition match
             case (_, LOOP) =>
-              Some(REDO -> transition -> 1)
+              REDO -> transition -> 1
             case _ =>
-              Some(REDO -> transition)
+              REDO -> transition
 
       }
-        .apply(game, State.pure(Eval.always(Some(Empty))), strategies, 1).runA(OPEN)
+        .apply(game, State.pure(Eval.always(Empty)), strategies, 1).runA(OPEN)
         .flatten
-        .value
         .map { it =>
           def counter(tree: Tree[Int | Null], count: Int = 0): Int =
             tree match
@@ -90,6 +90,7 @@ object Visitor:
               case Node(i: Int, children*) => children.foldRight(count + i)(counter)
           counter(it)
         }
+        .value
 
 
   object `Loser Versus Player`:
@@ -103,9 +104,9 @@ object Visitor:
       REDO -> 0
     )
 
-    def apply(game: Game, i: Int): Option[Tree[Data]] =
+    def apply(game: Game, i: Int): Tree[Data] =
 
-      new Visitor[Option, Data] {
+      new base.Visitor[Game, Path, Undo, Redo, Id, Tree[Data]] {
 
         override def apply(self: Visited,
                            depth: Int, phase: Phase, strategy: Strategy, detail: Option[Any]): Boolean =
@@ -118,44 +119,47 @@ object Visitor:
 
         override def game(self: Game,
                           transition: (Phase, Phase), strategies: Map[Entity, Strategy],
-                          depth: Int, detail: Option[Any]): Option[Tree[Data]] =
+                          depth: Int, detail: Option[Any]): Tree[Data] =
           detail match
             case Some((item: Int, _)) =>
-              Some(GAME -> transition -> Data(depth, Parameter(Some(item), None)))
+              GAME -> transition -> Data(depth, Parameter(Some(item), None))
             case _ =>
-              Some(GAME -> transition)
+              GAME -> transition
 
         override def path(self: Path,
                           transition: (Phase, Phase), strategies: Map[Entity, Strategy],
-                          depth: Int, detail: Option[Any]): Option[Tree[Data]] =
+                          depth: Int, detail: Option[Any]): Tree[Data] =
           detail match
             case Some(_) =>
-              Some(PATH -> transition -> Data(depth, Parameter(None, None)))
+              PATH -> transition -> Data(depth, Parameter(None, None))
             case _ =>
-              Some(PATH -> transition)
+              PATH -> transition
 
         override def undo(self: Undo,
                           transition: (Phase, Phase), strategies: Map[Entity, Strategy],
-                          depth: Int, detail: Option[Any]): Option[Tree[Data]] =
+                          depth: Int, detail: Option[Any]): Tree[Data] =
           transition match
             case (_, LOOP) =>
-              Some(UNDO -> transition -> Data(depth, Parameter(None, Some(UR(self)))))
+              UNDO -> transition -> Data(depth, Parameter(None, Some(UR(self))))
             case _ =>
-              Some(UNDO -> transition)
+              UNDO -> transition
 
         override def redo(self: Redo,
                           transition: (Phase, Phase), strategies: Map[Entity, Strategy],
-                          depth: Int, detail: Option[Any]): Option[Tree[Data]] =
+                          depth: Int, detail: Option[Any]): Tree[Data] =
           transition match
             case (_, LOOP) =>
-              Some(REDO -> transition -> Data(depth, Parameter(None, Some(UR(self)))))
+              REDO -> transition -> Data(depth, Parameter(None, Some(UR(self))))
             case _ =>
-              Some(REDO -> transition)
+              REDO -> transition
 
-      }.apply(game, State.pure(Eval.always(Some(Empty))), strategies, 1).runA(OPEN).flatten.value
+      }
+        .apply(game, State.pure(Eval.always(Empty)), strategies, 1).runA(OPEN)
+        .flatten
+        .value
 
 
-  object `UR Identifier Collector`:
+  object `Identifier Collector`:
 
     private val strategies = Map(
       GAME -> ASCENDING,
@@ -164,11 +168,12 @@ object Visitor:
       REDO -> 0
     )
 
-    type Data = (Int, Option[Long])
+    case class Data(depth: Int, identifier: Option[Long])
+        extends common.Tree.Validate.HasDepth
 
-    def apply(game: Game, i: Int, d: Int = 1): Option[Tree[Data]] =
+    def apply(game: Game, i: Int, d: Int = 1): Set[Long] =
 
-      new Visitor[Option, Data] {
+      new base.Visitor[Game, Path, Undo, Redo, Id, Tree[Data]] {
 
         private var ur: List[Unit] = Nil
 
@@ -179,7 +184,7 @@ object Visitor:
             case (_: Game, LOOP, _) => false
             case (selfʹ: Path, NEXT, _) => ur.nonEmpty || selfʹ.depth > d
             case (_, NEXT, _) => false
-            case (_: Undo | _: Redo, OPEN | LOOP, _) =>
+            case (_: Undo | _: Redo, OPEN, _) =>
               ur ::= ()
               true
             case (_: Undo | _: Redo, CLOSE, _) =>
@@ -189,41 +194,55 @@ object Visitor:
 
         override def game(self: Game,
                           transition: (Phase, Phase), strategies: Map[Entity, Strategy],
-                          depth: Int, detail: Option[Any]): Option[Tree[Data]] =
+                          depth: Int, detail: Option[Any]): Tree[Data] =
           detail match
             case Some((item: Int, _)) =>
-              Some(GAME -> transition -> (depth -> None))
+              GAME -> transition -> Data(depth, None)
             case _ =>
-              Some(GAME -> transition)
+              GAME -> transition
 
         override def path(self: Path,
                           transition: (Phase, Phase), strategies: Map[Entity, Strategy],
-                          depth: Int, detail: Option[Any]): Option[Tree[Data]] =
+                          depth: Int, detail: Option[Any]): Tree[Data] =
           detail match
             case Some(_) =>
-              Some(PATH -> transition -> (depth -> None))
+              PATH -> transition -> Data(depth, None)
             case _ =>
-              Some(PATH -> transition)
+              PATH -> transition
 
         override def undo(self: Undo,
                           transition: (Phase, Phase), strategies: Map[Entity, Strategy],
-                          depth: Int, detail: Option[Any]): Option[Tree[Data]] =
+                          depth: Int, detail: Option[Any]): Tree[Data] =
           transition match
             case (_, LOOP) =>
-              Some(UNDO -> transition -> (depth -> Some(self.identifier)))
+              UNDO -> transition -> Data(depth, Some(self.identifier))
             case _ =>
-              Some(UNDO -> transition)
+              UNDO -> transition
 
         override def redo(self: Redo,
                           transition: (Phase, Phase), strategies: Map[Entity, Strategy],
-                          depth: Int, detail: Option[Any]): Option[Tree[Data]] =
+                          depth: Int, detail: Option[Any]): Tree[Data] =
           transition match
             case (_, LOOP) =>
-              Some(REDO -> transition -> (depth -> Some(self.identifier)))
+              REDO -> transition -> Data(depth, Some(self.identifier))
             case _ =>
-              Some(REDO -> transition)
+              REDO -> transition
 
-      }.apply(game, State.pure(Eval.always(Some(Empty))), strategies, 1).runA(OPEN).flatten.value
+      }
+        .apply(game, State.pure(Eval.always(Empty)), strategies, 1).runA(OPEN)
+        .flatten
+        .map { it =>
+          def collector(tree: Tree[Data], result: Set[Long] = Set.empty): Set[Long] =
+            tree match
+              case Empty => result
+              case Leaf(Data(_, id)) =>
+                id.map(result + _).getOrElse(result)
+              case Node(Data(_, id), children*) =>
+                val resultʹ = id.map(result + _).getOrElse(result)
+                children.foldRight(resultʹ)(collector)
+          collector(it)
+        }
+        .value
 
 
   object `Loser Versus Player: With Identifier Filter`:
@@ -237,9 +256,9 @@ object Visitor:
       REDO -> 0
     )
 
-    def apply(game: Game, i: Int, ids: Set[Long]): Option[Tree[Data]] =
+    def apply(game: Game, i: Int, ids: Set[Long]): Tree[Data] =
 
-      new Visitor[Option, Data] {
+      new base.Visitor[Game, Path, Undo, Redo, Id, Tree[Data]] {
 
         override def apply(self: Visited,
                            depth: Int, phase: Phase, strategy: Strategy, detail: Option[Any]): Boolean =
@@ -254,38 +273,42 @@ object Visitor:
 
         override def game(self: Game,
                           transition: (Phase, Phase), strategies: Map[Entity, Strategy],
-                          depth: Int, detail: Option[Any]): Option[Tree[Data]] =
+                          depth: Int, detail: Option[Any]): Tree[Data] =
           detail match
             case Some((item: Int, _)) =>
-              Some(GAME -> transition -> Data(depth, Parameter(Some(item), None)))
+              GAME -> transition -> Data(depth, Parameter(Some(item), None))
             case _ =>
-              Some(GAME -> transition)
+              GAME -> transition
 
         override def path(self: Path,
                           transition: (Phase, Phase), strategies: Map[Entity, Strategy],
-                          depth: Int, detail: Option[Any]): Option[Tree[Data]] =
+                          depth: Int, detail: Option[Any]): Tree[Data] =
           detail match
             case Some(_) =>
-              Some(PATH -> transition -> Data(depth, Parameter(None, None)))
+              PATH -> transition -> Data(depth, Parameter(None, None))
             case _ =>
-              Some(PATH -> transition)
+              PATH -> transition
 
         override def undo(self: Undo,
                           transition: (Phase, Phase), strategies: Map[Entity, Strategy],
-                          depth: Int, detail: Option[Any]): Option[Tree[Data]] =
+                          depth: Int, detail: Option[Any]): Tree[Data] =
           transition match
             case (_, LOOP) =>
-              Some(UNDO -> transition -> Data(depth, Parameter(None, Some(UR(self)))))
+              UNDO -> transition -> Data(depth, Parameter(None, Some(UR(self))))
             case _ =>
-              Some(UNDO -> transition)
+              UNDO -> transition
 
         override def redo(self: Redo,
                           transition: (Phase, Phase), strategies: Map[Entity, Strategy],
-                          depth: Int, detail: Option[Any]): Option[Tree[Data]] =
+                          depth: Int, detail: Option[Any]): Tree[Data] =
           transition match
             case (_, LOOP) =>
-              Some(REDO -> transition -> Data(depth, Parameter(None, Some(UR(self)))))
+              REDO -> transition -> Data(depth, Parameter(None, Some(UR(self))))
             case _ =>
-              Some(REDO -> transition)
+              REDO -> transition
 
-      }.apply(game, State.pure(Eval.always(Some(Empty))), strategies, 1).runA(OPEN).flatten.value
+      }
+        .apply(game, State.pure(Eval.always(Empty)), strategies, 1).runA(OPEN)
+        .flatten
+        .value
+

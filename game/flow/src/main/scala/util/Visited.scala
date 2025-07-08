@@ -29,18 +29,18 @@ object Visited:
 
     override def apply[
       F[_]: Apply,
-      A >: Null
-    ](visitor: Visitor[F, A],
-      phases: State[Phase, Eval[F[Tree[A]]]],
+      A: Monoid
+    ](visitor: base.Visitor[flow.Game, flow.Path, flow.UndoRedo.Undo, flow.UndoRedo.Redo, F, A],
+      phases: State[Phase, Eval[F[A]]],
       strategies: Map[Entity, Strategy],
       depth: Int
-    ): State[Phase, Eval[F[Tree[A]]]] =
+    ): State[Phase, Eval[F[A]]] =
       val s = strategies(Entity.GAME)
 
       given Conversion[Strategy, Boolean] = _ & s ne 0
 
       val F = Apply[F]
-      val A = Monoid[Tree[A]]
+      val A = Monoid[A]
 
       var acc = phases
 
@@ -94,18 +94,18 @@ object Visited:
 
     override def apply[
       F[_]: Apply,
-      A >: Null
-    ](visitor: Visitor[F, A],
-      phases: State[Phase, Eval[F[Tree[A]]]],
+      A: Monoid
+    ](visitor: base.Visitor[flow.Game, flow.Path, flow.UndoRedo.Undo, flow.UndoRedo.Redo, F, A],
+      phases: State[Phase, Eval[F[A]]],
       strategies: Map[Entity, Strategy],
       depth: Int
-    ): State[Phase, Eval[F[Tree[A]]]] =
+    ): State[Phase, Eval[F[A]]] =
       val s = strategies(Entity.PATH)
 
       given Conversion[Strategy, Boolean] = _ & s ne 0
 
       val F = Apply[F]
-      val A = Monoid[Tree[A]]
+      val A = Monoid[A]
 
       var acc = phases
 
@@ -188,18 +188,18 @@ object Visited:
 
     override def apply[
       F[_]: Apply,
-      A >: Null
-    ](visitor: Visitor[F, A],
-      phases: State[Phase, Eval[F[Tree[A]]]],
+      A: Monoid
+    ](visitor: base.Visitor[flow.Game, flow.Path, flow.UndoRedo.Undo, flow.UndoRedo.Redo, F, A],
+      phases: State[Phase, Eval[F[A]]],
       strategies: Map[Entity, Strategy],
       depth: Int
-    ): State[Phase, Eval[F[Tree[A]]]] =
+    ): State[Phase, Eval[F[A]]] =
       val s = strategies(Entity.PATH)
 
       given Conversion[Strategy, Boolean] = _ & s ne 0
 
       val F = Apply[F]
-      val A = Monoid[Tree[A]]
+      val A = Monoid[A]
 
       var acc = phases
 
@@ -276,18 +276,18 @@ object Visited:
 
     override def apply[
       F[_]: Apply,
-      A >: Null
-    ](visitor: Visitor[F, A],
-      phases: State[Phase, Eval[F[Tree[A]]]],
+      A: Monoid
+    ](visitor: base.Visitor[flow.Game, flow.Path, flow.UndoRedo.Undo, flow.UndoRedo.Redo, F, A],
+      phases: State[Phase, Eval[F[A]]],
       strategies: Map[Entity, Strategy],
       depth: Int
-    ): State[Phase, Eval[F[Tree[A]]]] =
+    ): State[Phase, Eval[F[A]]] =
       val s = strategies(Entity.PATH)
 
       given Conversion[Strategy, Boolean] = _ & s ne 0
 
       val F = Apply[F]
-      val A = Monoid[Tree[A]]
+      val A = Monoid[A]
 
       var acc = phases
 

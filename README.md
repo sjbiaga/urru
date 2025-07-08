@@ -12,9 +12,8 @@ a keyboard interface: for a short description of (some of) the keys, press
 `ESCAPE`. In order to play a certain level, there is a file format per game
 described in, respectively, the files "`flow.txt`", "`fold.txt`" and
 "`fill.txt`": these files should be copied and edited to provide a level. Then,
-the file names must be programmatically specified in one of the two `Main.scala`
-source files, either in the package `ui.lanterna` (for playing in a limited
-`ANSI` terminal) or `ui.scalafx` (full `JavaFX` graphics).
+the file names must be programmatically specified in the `Main.scala`
+source file, in the sub-package `ui.scalafx` (full `JavaFX` graphics).
 
 `Path`s
 -------

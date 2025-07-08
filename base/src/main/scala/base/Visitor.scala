@@ -1,7 +1,7 @@
 package urru
 package base
 
-import cats.{ Apply, Eval }
+import cats.{ Apply, Eval, Monoid }
 import cats.data.State
 
 import common.Tree
@@ -15,13 +15,13 @@ abstract trait Visitor[
   U <: Visited[G, B, U, R],
   R <: Visited[G, B, U, R],
   F[_]: Apply,
-  A >: Null
+  A: Monoid
 ]:
 
   final def apply(self: Visited[G, B, U, R],
-                  phases: State[Phase, Eval[F[Tree[A]]]],
+                  phases: State[Phase, Eval[F[A]]],
                   strategies: Map[Entity, Strategy],
-                  depth: Int): State[Phase, Eval[F[Tree[A]]]] =
+                  depth: Int): State[Phase, Eval[F[A]]] =
     self(this, phases, strategies, depth + 1)
 
   def apply(self: Visited[G, B, U, R],
@@ -34,25 +34,25 @@ abstract trait Visitor[
            transition: (Phase, Phase),
            strategies: Map[Entity, Strategy],
            depth: Int,
-           detail: Option[Any] = None): F[Tree[A]]
+           detail: Option[Any] = None): F[A]
 
   def path(self: B,
            transition: (Phase, Phase),
            strategies: Map[Entity, Strategy],
            depth: Int,
-           detail: Option[Any] = None): F[Tree[A]]
+           detail: Option[Any] = None): F[A]
 
   def undo(self: U,
            transition: (Phase, Phase),
            strategies: Map[Entity, Strategy],
            depth: Int,
-           detail: Option[Any] = None): F[Tree[A]]
+           detail: Option[Any] = None): F[A]
 
   def redo(self: R,
            transition: (Phase, Phase),
            strategies: Map[Entity, Strategy],
            depth: Int,
-           detail: Option[Any] = None): F[Tree[A]]
+           detail: Option[Any] = None): F[A]
 
 
 object Visitor:
@@ -82,9 +82,9 @@ object Visitor:
 
     def apply[
       F[_]: Apply,
-      A >: Null
+      A: Monoid
     ](visitor: Visitor[G, B, U, R, F, A],
-      phases: State[Phase, Eval[F[Tree[A]]]],
+      phases: State[Phase, Eval[F[A]]],
       strategies: Map[Entity, Strategy],
       depth: Int
-    ): State[Phase, Eval[F[Tree[A]]]]
+    ): State[Phase, Eval[F[A]]]

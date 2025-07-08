@@ -74,7 +74,8 @@ object Versus:
 
     object ParameterJsonProtocol extends ParameterJsonProtocol
 
-  case class Data(override val depth: Int, parameter: Parameter) extends common.Tree.Validate.HasDepth
+  case class Data(depth: Int, parameter: Parameter)
+      extends common.Tree.Validate.HasDepth
 
   object Data:
 
