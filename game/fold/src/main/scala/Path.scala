@@ -17,10 +17,9 @@ import tense.intensional.Data.Doubt
 
 case class Path(
   override val dual: Id,
-  override val number: Long = 0,
-  override val depth: Int = -1,
-  override val nesting: Int = -1,
-  override val replica: Boolean = false,
+  override val number: Long,
+  override val depth: Int,
+  override val nesting: Int = 0,
   override val parent: Option[Path] = None,
   override val undo: Option[Undo] = None,
   override val redo: Option[Redo] = None,
@@ -32,12 +31,11 @@ case class Path(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-  override protected def apply(): Path =
+  override protected def fresh: Path =
     Path(dual,
          game.counters.path_++,
-         0,
-         nesting + 1,
-         true)
+         1,
+         nesting + 1)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,12 +48,11 @@ case class Path(
          game.counters.path_++,
          depth + 1,
          nesting,
-         replica,
          Some(this),
          Some {
            Undo(id, it, in,
                 undo,
-                Mutable(Path(dual)),
+                Mutable(fresh),
                 id.number)
          }
     )
@@ -66,14 +63,13 @@ case class Path(
   inline override protected def apply(it: Undo, next: Option[Redo]) =
     val id = Id(game.counters.just_++)
 
-    Redo(id, it, next, Mutable(Path(dual)))
+    Redo(id, it, next, Mutable(fresh))
 
-  inline override protected def apply(it: Redo) =
+  inline override protected def apply() =
     Path(dual,
          game.counters.path_++,
          depth + 1,
          nesting,
-         replica,
          Some(this))
 
 ////////////////////////////////////////////////////////////////////////////////

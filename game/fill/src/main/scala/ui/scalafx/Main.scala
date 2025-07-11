@@ -29,56 +29,38 @@ object Main extends IOApp:
 
     if args.isEmpty then file else mongo(args.head, args.tail)
 
-  def loop(id: Ref[IO, Long], mp: Ref[IO, Map[Int, List[Int]]], k: Int, ls: Ref[IO, List[Int]], t: String): IO[ExitCode] =
-    for
-      l <- ls.get
-      i = l.head
-      r <- Read(s"fill-$t$k-$i.txt")
-      (size, clues) = r
-      n <- id.get
-      game = Mutable(Game(n, size, clues, Pending)) //, Just, Have, Pending
-      eventD <- Deferred[IO, Event]
-      eventR <- IO.ref(eventD)
-      loopCB <- CyclicBarrier[IO](2)
-      _ <- app(s"fill-$t$k-$i", game, eventR, loopCB).use { app =>
-        game(app, eventR, loopCB).background.use { _ =>
-          IO.interruptible { app.main(Array.empty[String]) }
+  def loop(id: Long, mp: Map[Int, List[Int]], k: Int, ls: List[Int], t: String): IO[ExitCode] =
+    if mp.isEmpty
+    then
+      IO(ExitCode.Success)
+    else if ls.isEmpty
+    then
+      val (k,ls) = mp.head
+      loop(id, mp.tail, k, ls, t)
+    else
+      val i = ls.head
+      for
+        (size, clues) <- Read(s"fill-$t$k-$i.txt")
+        game = Mutable(Game(id, size, clues, Pending)) //, Just, Have, Pending
+        eventD <- Deferred[IO, Event]
+        eventR <- IO.ref(eventD)
+        loopCB <- CyclicBarrier[IO](2)
+        _ <- app(s"fill-$t$k-$i", game, eventR, loopCB).use { app =>
+          game(app, eventR, loopCB).background.use { _ =>
+            IO.interruptible { app.main(Array.empty[String]) }
+          }
         }
-      }
-      _ <- id.update(_ + 1)
-      _ <- if l.tail.isEmpty then mp.update(_.tail) else ls.update(_.tail)
-      m <- mp.get
-      ec <- if m.isEmpty then IO(ExitCode.Success)
-           else if l.tail.isEmpty then
-             for
-               m <- mp.get
-               (k, l) = m.head
-               ls <- IO.ref(l)
-               ec <- loop(id, mp, k, ls, t)
-             yield
-               ec
-           else
-             loop(id, mp, k, ls, t)
-    yield
-      ec
+        _ <- loop(id + 1, mp, k, ls.tail, t)
+      yield
+        ExitCode.Error
 
   def file: IO[ExitCode] =
-    for
-      id <- IO.ref(1L)
-      // mp <- IO.ref(Map(0 -> List(0), 2 -> List(5, 168)))
-      // mp <- IO.ref(Map(7 -> List(19)))
-      mp <- IO.ref(Map(20240409 -> List(3))) // 160
-      // mp <- IO.ref(Map(4 -> List(14)))
-      m <- mp.get
-      (k, l) = m.head
-      ls <- IO.ref(l)
-      // t = "cl-wc"
-      // t = "jp-pb-"
-      t = "btp-d-"
-      // t = ""
-      ec <- loop(id, mp, k, ls, t)
-    yield
-      ec
+    // val mp = Map(0 -> List(0), 2 -> List(5, 168))
+    // val mp = Map(7 -> List(19))
+    // val mp = Map(4 -> List(14))
+    val mp = Map(20240409 -> List(3)) // 160
+    val (k, ls) = mp.head
+    loop(1L, mp, k, ls, "btp-d-") // "cl-wc" "jp-pb-"
 
   def mongo(id: String, rest: List[String]): IO[ExitCode] =
     val mongo = Mongo(Config().urru.mongo)

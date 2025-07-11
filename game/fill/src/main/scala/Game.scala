@@ -438,7 +438,7 @@ case class Game(
       i <- 0 until state.size
     do
       var item = state(i)
-      Path(id, 0, 0) +=: item.path
+      Path(id, counters.path_++, 0) +=: item.path
       state(i) = init._3(i).copy(path = item.path)
       item = state(i)
       grid ++= item.play.head(grid, wildcards) // trick

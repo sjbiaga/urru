@@ -185,7 +185,7 @@ object JsonFormats:
       lazyFormat(jsonFormat(Path.apply,
                             "dual", "number",
                             "depth", "nesting",
-                            "replica", "parent",
+                            "parent",
                             "undo", "redo",
                             "just", "have"))
 

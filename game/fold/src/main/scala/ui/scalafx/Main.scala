@@ -29,39 +29,29 @@ object Main extends IOApp:
 
     if args.isEmpty then file else mongo(args.head, args.tail)
 
-  def loop(id: Ref[IO, Long], ls: Ref[IO, List[Int]]): IO[ExitCode] =
-    for
-      l <- ls.get
-      i = l.head
-      r <- Read(s"fold-lv-$i.txt")
-      (size, clues) = r
-      n <- id.get
-      game = Mutable(Game(n, size, clues, Pending)) //, Just, Have, Pending
-      eventD <- Deferred[IO, Event]
-      eventR <- IO.ref(eventD)
-      loopCB <- CyclicBarrier[IO](2)
-      _ <- app(s"fold-lv-$i", game, eventR, loopCB).use { app =>
-        game(app, eventR, loopCB).background.use { _ =>
-          IO.interruptible { app.main(Array.empty[String]) }
+  def loop(id: Long, ls: List[Int]): IO[ExitCode] =
+    if ls.isEmpty
+    then IO(ExitCode.Success)
+    else
+      val i = ls.head
+      for
+        (size, clues) <- Read(s"fold-lv-$i.txt")
+        game = Mutable(Game(id, size, clues, Pending)) //, Just, Have, Pending
+        eventD <- Deferred[IO, Event]
+        eventR <- IO.ref(eventD)
+        loopCB <- CyclicBarrier[IO](2)
+        _ <- app(s"fold-lv-$i", game, eventR, loopCB).use { app =>
+          game(app, eventR, loopCB).background.use { _ =>
+            IO.interruptible { app.main(Array.empty[String]) }
+          }
         }
-      }
-      _ <- id.update(_ + 1)
-      _ <- ls.update(_.tail)
-      l <- ls.get
-      ec <- if l.isEmpty
-            then IO(ExitCode.Success)
-            else loop(id, ls)
-    yield
-      ec
+        _ <- loop(id + 1, ls.tail)
+      yield
+        ExitCode.Error
 
   def file: IO[ExitCode] =
-    for
-      id <- IO.ref(1L)
-      //ls <- IO.ref(List(1170, 1171))
-      ls <- IO.ref(List(1279))
-      ec <- loop(id, ls)
-    yield
-      ec
+    // loop(1L, List(1170, 1171))
+    loop(1L, List(1279))
 
   def mongo(id: String, rest: List[String]): IO[ExitCode] =
     val mongo = Mongo(Config().urru.mongo)

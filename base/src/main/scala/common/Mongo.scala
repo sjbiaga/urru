@@ -55,7 +55,7 @@ final class Mongo(mongoClient: MongoClient, database: MongoDatabase):
     def apply(coll: String, sp: String, item: Int): Seq[Document] =
       val collection = database.getCollection(coll)
       val observable = collection.find(and(equal("savepoint", sp),
-                                           equal("tree.parameter.item", item)))
+                                           equal("tree.item", item)))
       Await.result(observable.toFuture(), 10.seconds)
 
 

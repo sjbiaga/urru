@@ -12,8 +12,6 @@ import Stream.repeatEval
 import common.grid.{ row, x, col, unary_! }
 import common.Mutable.given
 
-import grid.shape
-
 import grid.Game.*
 import UndoRedo.*
 
@@ -38,8 +36,6 @@ abstract trait Path[
   val depth: Int
   val nesting: Int
 
-  val replica: Boolean
-
   val parent: Option[B]
 
   val undo: Option[U]
@@ -50,7 +46,7 @@ abstract trait Path[
 
   protected given Conversion[Feature, Boolean] = duals.get(dual).features(_)
 
-  protected def apply(): B // fresh
+  protected def fresh: B
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,7 +167,7 @@ abstract trait Path[
             then
               done(false)
             else
-              val it: B = just(i).asInstanceOf[UndoRedo[B, C, D, K, M, U, R, ?]].path
+              val it: B = just(i).asInstanceOf[U | R].path
               tailcall { it.tense.Just.travel(color, 0, block, path1) }.flatMap {
                 if _
                 then
@@ -183,28 +179,28 @@ abstract trait Path[
 
 // Past Simple /////////////////////////////////////////////////////// repeal //
 
-      def repeal(id: Long): TailRec[Unit] =
+      def repeal(ids: Set[Long]): TailRec[Unit] =
         for
           _ <- done { just
-                       .filterInPlace { case it: UndoRedo[B, C, D, K, M, U, R, ?] =>
-                         it.identifier != id
+                       .filterInPlace { case it: (U | R) =>
+                         !ids.contains(it.identifier)
                        }
                     }
-          _ <- repeal(0, id)
-          _ <- parent.map(_.tense.Just.repeal(id)).getOrElse(done(()))
+          _ <- repeal(0, ids)
+          _ <- parent.map(_.tense.Just.repeal(ids)).getOrElse(done(()))
         yield
           ()
 
-      def repeal(i: Int, id: Long): TailRec[Unit] =
+      private def repeal(i: Int, ids: Set[Long]): TailRec[Unit] =
         done(i == just.size).flatMap {
           if _
           then
             done(())
           else
             for
-              _ <- tailcall { repeal(i + 1, id) }
-              it = just(i).asInstanceOf[UndoRedo[B, C, D, K, M, U, R, ?]]
-              _ <- tailcall { it.path.tense.Just.repeal(id) }
+              _ <- tailcall { repeal(i + 1, ids) }
+              it = just(i).asInstanceOf[U | R]
+              _ <- tailcall { it.path.tense.Just.repeal(ids) }
             yield
               ()
         }
@@ -216,7 +212,7 @@ abstract trait Path[
     then
       tense.Just(_.move(it)(in))
 
-    if !replica
+    if nesting == 0
     then
       if Feature.Have
       then
@@ -230,7 +226,7 @@ abstract trait Path[
 
   protected def apply(it: U, next: Option[R]): R
 
-  protected def apply(it: R): B
+  protected def apply(): B
 
   protected def apply(self: B,
                       undo: Option[U],
@@ -245,7 +241,7 @@ abstract trait Path[
       object Undo:
 
         def apply(u: Option[U] = undo): B =
-          val path = Path.this()
+          val path = fresh
           if u.isEmpty
           then
             path
@@ -275,10 +271,11 @@ abstract trait Path[
 
     private def repeal: Unit =
       var i = 0
+      var ids = Set[Long]()
       while i < just.size
       do
-        val it = just(i).asInstanceOf[UndoRedo[B, C, D, K, M, U, R, ?]]
-        parent.get.tense.Just.repeal(it.identifier).result
+        val it = just(i).asInstanceOf[U | R]
+        ids += it.identifier
         val n =
           just(i) match
             case it: U => it.number
@@ -290,6 +287,9 @@ abstract trait Path[
             case it: R => it.undo.number == n
         } do
           i += 1
+      if ids.nonEmpty
+      then
+        tense.Just.repeal(ids).result
 
     object Undo:
 
@@ -312,10 +312,10 @@ abstract trait Path[
 
               self.just += it(undo.replay().ur.Undo(None), id)
 
-            if !replica
-            then
               repeal
 
+            if nesting == 0
+            then
               if Feature.Have
               then
                 if !self.have.contains(depth)
@@ -343,10 +343,10 @@ abstract trait Path[
 
             if Feature.Just
             then
-              tense.Just(_.redo(elapsed -> id))
+              self.tense.Just(_.redo(elapsed -> id))
 
-              just += it(undo.replay().ur.Redo(None), id)
+              self.just += it(undo.replay().ur.Redo(None), id)
 
           case _ =>
 
-        Path.this(Path.this(it), Some(it.undo), it.next)
+        Path.this(Path.this(), Some(it.undo), it.next)

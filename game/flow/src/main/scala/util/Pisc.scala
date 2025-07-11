@@ -11,7 +11,7 @@ import common.grid.{ row, col }
 import common.Mongo
 
 import common.Tree
-import Tree.{ Leaf, Node, Validate }
+import Tree.{ Leaf, Node }
 
 import Versus.{ Data, Parameter, UR, Key }
 
@@ -42,9 +42,9 @@ object sΠ:
   def apply(filename: String): String =
     s"""sh -c 'cd sΠ/examples; spi_ "$filename.scala"'"""
 
-  private object Gather:
+  object Gather:
 
-    def apply(children: Seq[Tree[Data]]): Seq[Tree[Data]] =
+    private def apply(children: Seq[Tree[Data]]): Seq[Tree[Data]] =
       val (childrenʹ, childrenʹʹ) = children.partition {
         case Leaf(Data(_, Parameter(_, Some(_))))
            | Node(Data(_, Parameter(_, Some(_))), _*) => true
@@ -55,28 +55,32 @@ object sΠ:
         case _ => Nil
       }
 
+    def apply(tree: Tree[Data]): Tree[Data] =
+      tree match
+        case Node(it @ Data(_, Parameter(Some(_), _) | Parameter(_, Some(_))), children*) =>
+          Node(it, Gather(children).map(this(_))*)
+        case _ => tree
+
   object Loser:
 
     def apply(mongo: Mongo, name: String, savepoint: String, game: Game, i: Int): Unit =
       import spray.json.enrichAny
       import common.Tree.Implicits.TreeJsonProtocolʹ.*
-      import flow.util.Versus.Data.DataJsonProtocol.*
+      import flow.util.Versus.Parameter.ParameterJsonProtocol.*
 
       val tree = Visitor.`Loser Versus Player`(game, i)
-
-      assert(Validate(tree)())
 
       val treeʹ = savepoint -> tree
 
       mongo.save(treeʹ.toJson, s"flow_${name}_looser_vs_player_loosing")
 
-    def apply(tree: Tree[Data])(using xs: List[Int] = Nil): String =
+    def apply(tree: Tree[Parameter])(using xs: List[Int] = Nil): String =
       tree match
-        case Node(Data(_, Parameter(Some(_), _)), children*) =>
+        case Node(Parameter(Some(_), _), children*) =>
           val sender = "ur"
-          Gather(children).groupBy {
-            case Leaf(Data(_, Parameter(_, Some(UR(_, key, _))))) => key
-            case Node(Data(_, Parameter(_, Some(UR(_, key, _)))), _*) => key
+          children.groupBy {
+            case Leaf(Parameter(_, Some(UR(_, key, _)))) => key
+            case Node(Parameter(_, Some(UR(_, key, _))), _*) => key
           }.zipWithIndex.map { case ((key, ts), x) =>
             given xsʹ: List[Int] = x :: xs
             val nameʹ = s"""${xsʹ.mkString("_")}"""
@@ -86,22 +90,22 @@ object sΠ:
             val ps = new_ur + sender + s"</*'$uʹ :: '$rʹ :: $keyʹ :: Nil*/>. "
             ps + ts.map(this(_)).mkString("(", " + ", ")")
           }.mkString("(", " | ", ")")
-        case Leaf(Data(_, Parameter(_, Some(UR(ur, _, elapsed))))) =>
+        case Leaf(Parameter(_, Some(UR(ur, _, elapsed)))) =>
           val name = s"""${xs.mkString("_")}"""
           val (u, r) = s"u_$name" -> s"r_$name"
           val rate = s" @ ${elapsed}⊤"
           val sender = if ur then u else r
           val senderʹ = sender + rate
           s"$senderʹ<$sender>."
-        case Node(Data(_, Parameter(_, Some(UR(ur, _, elapsed)))), children*) =>
+        case Node(Parameter(_, Some(UR(ur, _, elapsed))), children*) =>
           val name = s"""${xs.mkString("_")}"""
           val (u, r) = s"u_$name" -> s"r_$name"
           val rate = s" @ ${elapsed}⊤"
           val sender = if ur then u else r
           val senderʹ = sender + rate
-          Gather(children).groupBy {
-            case Leaf(Data(_, Parameter(_, Some(UR(_, key, _))))) => key
-            case Node(Data(_, Parameter(_, Some(UR(_, key, _)))), _*) => key
+          children.groupBy {
+            case Leaf(Parameter(_, Some(UR(_, key, _)))) => key
+            case Node(Parameter(_, Some(UR(_, key, _))), _*) => key
           }.zipWithIndex.map { case ((key, ts), x) =>
             given xsʹ: List[Int] = x :: xs
             val nameʹ = s"""${xsʹ.mkString("_")}"""
@@ -118,14 +122,14 @@ object sΠ:
 
   object Player:
 
-    def apply(tree: Tree[Data])(using xs: List[Int] = Nil): String =
+    def apply(tree: Tree[Parameter])(using xs: List[Int] = Nil): String =
       tree match
-        case Node(Data(_, Parameter(Some(_), _)), children*) =>
+        case Node(Parameter(Some(_), _), children*) =>
           val repl = s"!.ur(list: List[`()`] /**/). "
           val uncons = s"list::(,, at: (Int, Int) /**/, dir: String /**/,). "
-          Gather(children).groupBy {
-            case Leaf(Data(_, Parameter(_, Some(UR(_, key, _))))) => key
-            case Node(Data(_, Parameter(_, Some(UR(_, key, _)))), _*) => key
+          children.groupBy {
+            case Leaf(Parameter(_, Some(UR(_, key, _)))) => key
+            case Node(Parameter(_, Some(UR(_, key, _))), _*) => key
           }.zipWithIndex.map { case ((key, ts), x) =>
             given xsʹ: List[Int] = x :: xs
             val cases = s"""[at = /*(${key.at.row}, ${key.at.col})*/][dir = "${key.dir}"] """
@@ -136,14 +140,14 @@ object sΠ:
           } match
             case it if it.nonEmpty => "(" + repl + uncons + it.mkString("(", " + ", ")") + ")"
             case _ => "()"
-        case Leaf(Data(_, Parameter(_, Some(UR(ur, _, elapsed))))) =>
+        case Leaf(Parameter(_, Some(UR(ur, _, elapsed)))) =>
           val name = s"""${xs.mkString("_")}"""
           val (u, r) = s"u_$name" -> s"r_$name"
           val rate = s" @ ${elapsed}⊤"
           val recver = if ur then u else r
           val recverʹ = recver + rate
           s"$recverʹ($recver)."
-        case Node(Data(_, Parameter(_, Some(UR(ur, _, elapsed)))), children*) =>
+        case Node(Parameter(_, Some(UR(ur, _, elapsed))), children*) =>
           val name = s"""${xs.mkString("_")}"""
           val (u, r) = s"u_$name" -> s"r_$name"
           val rate = s" @ ${elapsed}⊤"
@@ -151,9 +155,9 @@ object sΠ:
           val recverʹ = recver + rate
           val repl = s"!.$recverʹ(list: List[`()`] /**/). "
           val uncons = s"list::(,, at: (Int, Int) /**/, dir: String /**/,). "
-          Gather(children).groupBy {
-            case Leaf(Data(_, Parameter(_, Some(UR(_, key, _))))) => key
-            case Node(Data(_, Parameter(_, Some(UR(_, key, _)))), _*) => key
+          children.groupBy {
+            case Leaf(Parameter(_, Some(UR(_, key, _)))) => key
+            case Node(Parameter(_, Some(UR(_, key, _))), _*) => key
           }.zipWithIndex.map { case ((key, ts), x) =>
             given xsʹ: List[Int] = x :: xs
             val cases = s"""[at = /*(${key.at.row}, ${key.at.col})*/][dir = "${key.dir}"] """
@@ -183,15 +187,12 @@ object sΠ:
                 val i = 2*k+odd
 
                 val tree = flow.util.Visitor.`Loser Versus Player`(game, i)
-                assert(Validate(tree)())
                 Player(tree)
               }
         ls <- IO.blocking {
                 import spray.json.enrichString
                 import common.Tree.Implicits.TreeJsonProtocolʹ.*
-                import flow.util.Versus.Data.DataJsonProtocol.*
-                import common.Tree
-                import flow.util.Versus.Data
+                import flow.util.Versus.Parameter.ParameterJsonProtocol.*
                 import flow.util.sΠ.Loser
 
                 val (odd, start) = game.nowStart
@@ -201,7 +202,7 @@ object sΠ:
 
                 mongo.item(s"flow_${name}_looser_vs_player_loosing",
                            game.savepoint.current.get, i)
-                  .map(_.toJson.parseJson.convertTo[(String, Tree[Data])]._2)
+                  .map(_.toJson.parseJson.convertTo[(String, Tree[Parameter])]._2)
                   .map(Loser(_))
               }
         xs <- IO.blocking {

@@ -3,7 +3,7 @@ package game
 package flow
 package util
 
-import cats.{ Apply, Eval, Monoid }
+import cats.{ Applicative, Eval, Monoid }
 
 import cats.data.State
 import cats.syntax.flatMap.*
@@ -28,7 +28,7 @@ object Visited:
   abstract trait Game extends Visited { this: flow.Game =>
 
     override def apply[
-      F[_]: Apply,
+      F[_]: Applicative,
       A: Monoid
     ](visitor: base.Visitor[flow.Game, flow.Path, flow.UndoRedo.Undo, flow.UndoRedo.Redo, F, A],
       phases: State[Phase, Eval[F[A]]],
@@ -39,7 +39,7 @@ object Visited:
 
       given Conversion[Strategy, Boolean] = _ & s ne 0
 
-      val F = Apply[F]
+      val F = Applicative[F]
       val A = Monoid[A]
 
       var acc = phases
@@ -93,7 +93,7 @@ object Visited:
   abstract trait Path extends Visited { this: flow.Path =>
 
     override def apply[
-      F[_]: Apply,
+      F[_]: Applicative,
       A: Monoid
     ](visitor: base.Visitor[flow.Game, flow.Path, flow.UndoRedo.Undo, flow.UndoRedo.Redo, F, A],
       phases: State[Phase, Eval[F[A]]],
@@ -104,7 +104,7 @@ object Visited:
 
       given Conversion[Strategy, Boolean] = _ & s ne 0
 
-      val F = Apply[F]
+      val F = Applicative[F]
       val A = Monoid[A]
 
       var acc = phases
@@ -187,7 +187,7 @@ object Visited:
   abstract trait Undo extends Visited { this: flow.UndoRedo.Undo =>
 
     override def apply[
-      F[_]: Apply,
+      F[_]: Applicative,
       A: Monoid
     ](visitor: base.Visitor[flow.Game, flow.Path, flow.UndoRedo.Undo, flow.UndoRedo.Redo, F, A],
       phases: State[Phase, Eval[F[A]]],
@@ -198,7 +198,7 @@ object Visited:
 
       given Conversion[Strategy, Boolean] = _ & s ne 0
 
-      val F = Apply[F]
+      val F = Applicative[F]
       val A = Monoid[A]
 
       var acc = phases
@@ -275,7 +275,7 @@ object Visited:
   abstract trait Redo extends Visited { this: flow.UndoRedo.Redo =>
 
     override def apply[
-      F[_]: Apply,
+      F[_]: Applicative,
       A: Monoid
     ](visitor: base.Visitor[flow.Game, flow.Path, flow.UndoRedo.Undo, flow.UndoRedo.Redo, F, A],
       phases: State[Phase, Eval[F[A]]],
@@ -286,7 +286,7 @@ object Visited:
 
       given Conversion[Strategy, Boolean] = _ & s ne 0
 
-      val F = Apply[F]
+      val F = Applicative[F]
       val A = Monoid[A]
 
       var acc = phases

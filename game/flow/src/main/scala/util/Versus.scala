@@ -6,10 +6,20 @@ package util
 import io.github.greenleafoss.mongo.GreenLeafJsonProtocol
 import spray.json.{ JsonFormat, RootJsonFormat }
 
+import common.Tree
+import Tree.*
+
 import UndoRedo.*
 
 
 object Versus:
+
+  extension (self: Tree[Data])
+    def apply(): Tree[Parameter] =
+      self match
+        case Leaf(Data(_, it)) => Leaf(it)
+        case Node(Data(_, it), children*) => Node(it, children.map(_())*)
+        case Empty => Empty
 
   enum Dir:
     case UP, DOWN, LEFT, RIGHT

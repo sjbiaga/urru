@@ -36,7 +36,7 @@ object Main extends IOApp:
       val i = ls.head
       for
         (size, clues) <- Read(s"flow-$t-$i.txt")
-        game = Mutable(Game(id, size, clues, Just, Just /*Pending*/)) // , Have, Pending
+        game = Mutable(Game(id, size, clues, Just, Pending /*Just*/)) // , Have, Pending
         eventD <- Deferred[IO, Event]
         eventR <- IO.ref(eventD)
         loopCB <- CyclicBarrier[IO](2)
@@ -50,6 +50,10 @@ object Main extends IOApp:
         ExitCode.Error
 
   def file: IO[ExitCode] =
+    // loop(1L, List(2, 3), "br")
+    // loop(1L, List(2, 3, 4, 5), "cl")
+    // loop(1L, List(1), "weekly-htb")
+    // loop(1L, List(11), "weekly-p")
     loop(1L, List(2), "cl-wc")
 
   def mongo(id: String, rest: List[String]): IO[ExitCode] =

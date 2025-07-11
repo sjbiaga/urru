@@ -1,7 +1,7 @@
 package urru
 package base
 
-import cats.{ Apply, Eval, Monoid }
+import cats.{ Applicative, Eval, Monoid }
 import cats.data.State
 
 import common.Tree
@@ -14,7 +14,7 @@ abstract trait Visitor[
   B <: Visited[G, B, U, R],
   U <: Visited[G, B, U, R],
   R <: Visited[G, B, U, R],
-  F[_]: Apply,
+  F[_]: Applicative,
   A: Monoid
 ]:
 
@@ -34,25 +34,25 @@ abstract trait Visitor[
            transition: (Phase, Phase),
            strategies: Map[Entity, Strategy],
            depth: Int,
-           detail: Option[Any] = None): F[A]
+           detail: Option[Any] = None): F[A] = Applicative[F].pure(Monoid[A].empty)
 
   def path(self: B,
            transition: (Phase, Phase),
            strategies: Map[Entity, Strategy],
            depth: Int,
-           detail: Option[Any] = None): F[A]
+           detail: Option[Any] = None): F[A] = Applicative[F].pure(Monoid[A].empty)
 
   def undo(self: U,
            transition: (Phase, Phase),
            strategies: Map[Entity, Strategy],
            depth: Int,
-           detail: Option[Any] = None): F[A]
+           detail: Option[Any] = None): F[A] = Applicative[F].pure(Monoid[A].empty)
 
   def redo(self: R,
            transition: (Phase, Phase),
            strategies: Map[Entity, Strategy],
            depth: Int,
-           detail: Option[Any] = None): F[A]
+           detail: Option[Any] = None): F[A] = Applicative[F].pure(Monoid[A].empty)
 
 
 object Visitor:
@@ -81,7 +81,7 @@ object Visitor:
   ]:
 
     def apply[
-      F[_]: Apply,
+      F[_]: Applicative,
       A: Monoid
     ](visitor: Visitor[G, B, U, R, F, A],
       phases: State[Phase, Eval[F[A]]],

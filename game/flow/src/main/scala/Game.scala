@@ -422,7 +422,7 @@ case class Game(
       i <- 0 until state.size
       item = state(i)
     do
-      Path(id, 0, 1) +=: item.path
+      Path(id, counters.path_++, 1) +=: item.path
       state(i) = init._3(i).copy(path = item.path)
 
     check
