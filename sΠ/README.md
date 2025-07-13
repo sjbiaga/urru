@@ -1,11 +1,14 @@
-Stochastic Pi-calculus in SCala aka PISC ala RISC
-=================================================
+Stochastic Pi-calculus in SCala aka sPISC ala RISC
+==================================================
 
 The π-calculus maps one to one on `Scala` for-comprehensions
 "inside" the Cats Effect's `IO[_]` monad.
 
 The stochastic branch adds rates to actions in comparison with
 the [π-calculus](https://github.com/sjbiaga/pisc/tree/main).
+This branch uses _cancellation_ to discard actions.
+Another [branch](https://github.com/sjbiaga/pisc/tree/stochastic-flatMap)
+heavily uses `flatMap`'s and comparison with `null` to discard actions.
 
 After code generation, the π-calculus "processes" could be
 programmatically typed as `Scala` code using `CE` `IO`.
@@ -449,6 +452,7 @@ where "`uuid`" is some generated `java.util.UUID`.
 
 Agent identifiers (literals) start with uppercase, while
 channel names start with lowercase.
+
 
 Apps (examples)
 ---------------

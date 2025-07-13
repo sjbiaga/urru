@@ -250,9 +250,7 @@ object Program:
         case !(Some(μ), sum) =>
           val υidυ = id
 
-          val `μ.generate` = μ.generate
-
-          val `!.μ⋯` = `μ.generate` :+ `_ <- *`(s"$υidυ(`π-uuid`)".parse[Term].get)
+          val `!.μ⋯` = μ.generate :+ `_ <- *`(s"$υidυ(`π-uuid`)".parse[Term].get)
 
           val it = `NonEmptyList( *, … ).parSequence`(
                      sum.generate,
